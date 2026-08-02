@@ -1,0 +1,9 @@
+# Ignore heavy spatial datasets & binary matrices
+*.nc
+*.nc4
+*.mat
+*.hdf
+*.hdf5
+
+# Ignore workspace and local config files
+.vscode/
