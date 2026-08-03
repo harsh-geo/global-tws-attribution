@@ -22,9 +22,13 @@ fprintf('=== STEP 2: Starting Latitude Cosine-Weighted Basin Aggregation ===\n')
 %% Directory Setup & Loading Inputs
 processed_dir = fullfile('data', 'processed');
 raw_dir       = fullfile('data', 'raw');
+grace_dir     = fullfile('grace');
 
 grid_mat  = fullfile(processed_dir, 'standardized_grids.mat');
-basin_mat = fullfile(raw_dir, 'basin_map.mat');
+basin_mat = fullfile(processed_dir, 'basin_map.mat');
+if ~exist(basin_mat, 'file')
+    basin_mat = fullfile(raw_dir, 'basin_map.mat');
+end
 
 if ~exist(grid_mat, 'file')
     error('Standardized grids file %s not found! Please run step01_unit_conversion.m first.', grid_mat);
@@ -130,7 +134,11 @@ end
 clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
 %% Load Date Vector
-dates_file = fullfile(raw_dir, 'grace_dates.mat');
+dates_file = fullfile(grace_dir, 'grace_dates.mat');
+if ~exist(dates_file, 'file')
+    dates_file = fullfile(raw_dir, 'grace_dates.mat');
+end
+
 if exist(dates_file, 'file')
     date_struct = load(dates_file);
     fn = fieldnames(date_struct);
