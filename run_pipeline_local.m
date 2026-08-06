@@ -25,6 +25,13 @@ end
 addpath(genpath(fullfile(project_root, 'src')));
 addpath(genpath(fullfile(project_root, 'visualization')));
 
+% --- CONFIGURATION ---
+% Choose the attribution modeling approach for STEP 4:
+% 'absolute' : Use raw absolute values for drivers (default)
+% 'anomaly'  : Use anomaly values (mean removed) for all drivers
+attribution_model = 'absolute'; 
+
+
 %% STEP 1: Unit Standardization & Data Sanitization
 fprintf('--> Running STEP 1: Hydroclimate Flux Standardization...\n');
 t_step = tic;
@@ -46,7 +53,13 @@ fprintf('✓ STEP 3 Completed in %.2f seconds.\n\n', toc(t_step));
 %% STEP 4: Twin RF Machine Learning Attribution
 fprintf('--> Running STEP 4: Twin RF Attribution Modeling...\n');
 t_step = tic;
-run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
+if strcmpi(attribution_model, 'anomaly')
+    fprintf('    Using ANOMALY values for predictors.\n'); %#ok<UNRCH>
+    run(fullfile(project_root, 'src', 'modeling', 'step04b_run_attribution_anomalies.m')); %#ok<UNRCH>
+else
+    fprintf('    Using ABSOLUTE values for predictors.\n');
+    run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
+end
 fprintf('✓ STEP 4 Completed in %.2f seconds.\n\n', toc(t_step));
 
 %% STEP 5: Validation & Trend Analysis

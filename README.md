@@ -61,7 +61,8 @@ data2/
 │   ├── gap_filling/
 │   │   └── step03_reconstruct_grace.m   # RF gap-filling for missing GRACE months
 │   ├── modeling/
-│   │   └── step04_run_attribution.m    # Twin Random Forest attribution modeling
+│   │   ├── step04_run_attribution.m    # Twin Random Forest attribution modeling
+│   │   └── step04b_run_attribution_anomalies.m # Twin RF using anomaly drivers
 │   └── validation/
 │       └── step05_validate_and_trends.m # 3-Yr block cross-validation & Mann-Kendall trends
 ├── visualization/
@@ -94,12 +95,15 @@ data2/
 - Trains an ensemble Random Forest regressor (`TreeBagger`) per basin using hydroclimate predictors ($P, ET, Q$) during continuous baseline observation periods (2002–2017).
 
 ### Step 4: Twin Attribution Modeling
-`src/modeling/step04_run_attribution.m`
+`src/modeling/step04_run_attribution.m` & `src/modeling/step04b_run_attribution_anomalies.m`
 - Calculates $TWSC$ via centered finite differences:
   $$TWSC(t) = \frac{TWS(t+1) - TWS(t-1)}{2 \Delta t}$$
+- Configurable modeling approaches via `attribution_model` flag in `run_pipeline_local.m`:
+  - **Absolute Values**: Uses raw inputs for hydroclimate drivers.
+  - **Anomaly Values**: Subtracts the 2004-2008 baseline mean from all drivers before modeling (matching GRACE TWS convention).
 - Trains twin models:
-  - **Natural Baseline Model ($M_{nat}$)**: Predicts $TWSC$ using $P, ET, Q$.
-  - **Full Anthropogenic Model ($M_{anthro}$)**: Predicts $TWSC$ using $P, ET, Q, GW_{abs}, SW_{abs}$.
+  - **Natural Baseline Model ($M_{nat}$)**: Predicts $TWSC$ using $P, ET, Q$ (absolute or anomaly).
+  - **Full Anthropogenic Model ($M_{anthro}$)**: Predicts $TWSC$ using $P, ET, Q, GW_{abs}, SW_{abs}$ (absolute or anomaly).
 - Computes variance explained gain ($\Delta R^2 = R^2_{anthro} - R^2_{nat}$) and Out-of-Bag Permutation Feature Importance.
 
 ### Step 5: Validation & Trend Analysis
