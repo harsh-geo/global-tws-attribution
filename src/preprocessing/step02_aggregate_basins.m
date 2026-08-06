@@ -16,7 +16,6 @@
 %     P_basin, ET_basin, Q_basin, GW_basin, SW_basin, TWS_basin, grace_dates
 % =========================================================================
 
-clear; clc;
 fprintf('=== STEP 2: Starting Latitude Cosine-Weighted Basin Aggregation ===\n');
 
 %% Directory Setup & Loading Inputs
@@ -30,18 +29,25 @@ processed_dir = fullfile(project_root, 'data', 'processed');
 raw_dir       = fullfile(project_root, 'data', 'raw');
 grace_dir     = fullfile(project_root, 'grace');
 
-grid_mat  = fullfile(processed_dir, 'standardized_grids.mat');
+% Check if standardized grids are present in memory. If not, load or compute them.
+if ~exist('tws_grid', 'var') && ~exist('P_grid', 'var')
+    grid_mat = fullfile(processed_dir, 'standardized_grids.mat');
+    if exist(grid_mat, 'file')
+        fprintf('Loading standardized spatial grids from %s...\n', grid_mat);
+        load(grid_mat);
+    else
+        fprintf('Standardized spatial grids not in memory. Running step01_unit_conversion.m...\n');
+        run(fullfile(project_root, 'src', 'preprocessing', 'step01_unit_conversion.m'));
+    end
+end
+
 basin_mat = fullfile(processed_dir, 'basin_map.mat');
 if ~exist(basin_mat, 'file')
     basin_mat = fullfile(raw_dir, 'basin_map.mat');
 end
 
-if ~exist(grid_mat, 'file')
-    error('Standardized grids file %s not found! Please run step01_unit_conversion.m first.', grid_mat);
-end
-
 if ~exist(basin_mat, 'file')
-    error('Basin map file %s not found in data/raw/!', basin_mat);
+    error('Basin map file %s not found in data/raw/ or data/processed/!', basin_mat);
 end
 
 fprintf('Loading basin masks from %s...\n', basin_mat);
@@ -77,77 +83,71 @@ cos_weights_2d = repmat(cos_weights_1d, 720, 1); % 720 x 360 spatial weight grid
 %% 1. Aggregate GRACE TWS Anomalies
 % -------------------------------------------------------------------------
 fprintf('[1/6] Extracting basin time-series for TWS Anomalies...\n');
-grids = load(grid_mat, 'tws_grid');
-if ~isempty(grids.tws_grid)
-    TWS_basin = extract_weighted_basin_series(grids.tws_grid, basin_mask, cos_weights_2d, n_basins);
+if exist('tws_grid', 'var') && ~isempty(tws_grid)
+    TWS_basin = extract_weighted_basin_series(tws_grid, basin_mask, cos_weights_2d, n_basins);
+    clear tws_grid; % Memory Directive: Clear heavy 3D grid immediately
 else
     TWS_basin = [];
 end
-clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
 %% 2. Aggregate Precipitation (P)
 % -------------------------------------------------------------------------
 fprintf('[2/6] Extracting basin time-series for Precipitation (P)...\n');
-grids = load(grid_mat, 'P_grid');
-if ~isempty(grids.P_grid)
-    P_basin = extract_weighted_basin_series(grids.P_grid, basin_mask, cos_weights_2d, n_basins);
+if exist('P_grid', 'var') && ~isempty(P_grid)
+    P_basin = extract_weighted_basin_series(P_grid, basin_mask, cos_weights_2d, n_basins);
+    clear P_grid; % Memory Directive: Clear heavy 3D grid immediately
 else
     P_basin = [];
 end
-clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
 %% 3. Aggregate Evapotranspiration (ET)
 % -------------------------------------------------------------------------
 fprintf('[3/6] Extracting basin time-series for Evapotranspiration (ET)...\n');
-grids = load(grid_mat, 'ET_grid');
-if ~isempty(grids.ET_grid)
-    ET_basin = extract_weighted_basin_series(grids.ET_grid, basin_mask, cos_weights_2d, n_basins);
+if exist('ET_grid', 'var') && ~isempty(ET_grid)
+    ET_basin = extract_weighted_basin_series(ET_grid, basin_mask, cos_weights_2d, n_basins);
+    clear ET_grid; % Memory Directive: Clear heavy 3D grid immediately
 else
     ET_basin = [];
 end
-clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
 %% 4. Aggregate Runoff / Discharge (Q)
 % -------------------------------------------------------------------------
 fprintf('[4/6] Extracting basin time-series for Runoff/Discharge (Q)...\n');
-grids = load(grid_mat, 'Q_grid');
-if ~isempty(grids.Q_grid)
-    Q_basin = extract_weighted_basin_series(grids.Q_grid, basin_mask, cos_weights_2d, n_basins);
+if exist('Q_grid', 'var') && ~isempty(Q_grid)
+    Q_basin = extract_weighted_basin_series(Q_grid, basin_mask, cos_weights_2d, n_basins);
+    clear Q_grid; % Memory Directive: Clear heavy 3D grid immediately
 else
     Q_basin = [];
 end
-clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
 %% 5. Aggregate Groundwater Abstraction (GW_abs)
 % -------------------------------------------------------------------------
 fprintf('[5/6] Extracting basin time-series for GW Abstraction...\n');
-grids = load(grid_mat, 'GW_grid');
-if ~isempty(grids.GW_grid)
-    GW_basin = extract_weighted_basin_series(grids.GW_grid, basin_mask, cos_weights_2d, n_basins);
+if exist('GW_grid', 'var') && ~isempty(GW_grid)
+    GW_basin = extract_weighted_basin_series(GW_grid, basin_mask, cos_weights_2d, n_basins);
+    clear GW_grid; % Memory Directive: Clear heavy 3D grid immediately
 else
     GW_basin = [];
 end
-clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
 %% 6. Aggregate Surface Water Abstraction (SW_abs)
 % -------------------------------------------------------------------------
 fprintf('[6/6] Extracting basin time-series for SW Abstraction...\n');
-grids = load(grid_mat, 'SW_grid');
-if ~isempty(grids.SW_grid)
-    SW_basin = extract_weighted_basin_series(grids.SW_grid, basin_mask, cos_weights_2d, n_basins);
+if exist('SW_grid', 'var') && ~isempty(SW_grid)
+    SW_basin = extract_weighted_basin_series(SW_grid, basin_mask, cos_weights_2d, n_basins);
+    clear SW_grid; % Memory Directive: Clear heavy 3D grid immediately
 else
     SW_basin = [];
 end
-clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
 %% Construct Continuous Monthly Date Vector (Apr 2002 to Dec 2019 = 213 months)
 grace_dates = (datetime(2002, 4, 1) + calmonths(0:212))';
 
-%% Save Basin Time-Series File
-out_mat = fullfile(processed_dir, 'basin_time_series.mat');
-fprintf('Saving aggregated 2D basin time-series matrices to %s...\n', out_mat);
-save(out_mat, 'P_basin', 'ET_basin', 'Q_basin', 'GW_basin', 'SW_basin', 'TWS_basin', 'grace_dates', '-v7.3');
-fprintf('=== STEP 2 Complete: 103-Basin Cosine-Weighted Time-Series Saved ===\n\n');
+%% Save Basin Time-Series 2D Matrices to Disk
+ts_file = fullfile(processed_dir, 'basin_time_series.mat');
+fprintf('Saving basin time-series to %s...\n', ts_file);
+save(ts_file, 'P_basin', 'ET_basin', 'Q_basin', 'GW_basin', 'SW_basin', 'TWS_basin', 'grace_dates', '-v7.3');
+fprintf('=== STEP 2 Complete: 103-Basin Time-Series Aggregated & Saved ===\n\n');
 
 %% Helper Function for Latitude Cosine-Weighted Spatial Aggregation
 function basin_series = extract_weighted_basin_series(grid_3d, basin_mask, cos_weights, n_basins)

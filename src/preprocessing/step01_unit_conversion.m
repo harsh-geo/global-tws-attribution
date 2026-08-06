@@ -20,10 +20,10 @@
 %   - data/processed/sw_abs_pcrglobwb_2002_2019.nc     -> PCR-GLOBWB SW Abstraction
 %
 % OUTPUT:
-%   - data/processed/standardized_grids.mat containing converted 3D grids
+%   - Hydroclimate flux grids (tws_grid, P_grid, ET_grid, Q_grid, GW_grid, SW_grid)
+%     retained in memory for Step 2 (intermediate .mat saving disabled to save disk space).
 % =========================================================================
 
-clear; clc;
 fprintf('=== STEP 1: Starting Unit Conversion & Data Sanitization ===\n');
 
 %% Directory Configuration & Setup
@@ -53,7 +53,7 @@ target_dates = (datetime(2002, 4, 1) + calmonths(0:212))'; % 213 x 1 datetime ve
 %% 1. Process GRACE / GRACE-FO TWS Anomalies (from grace/)
 % -------------------------------------------------------------------------
 % GRACE TWS is stored as Liquid Water Equivalent (LWE) thickness (in cm).
-% GRACE missing months are not stored as NaNs in the file, but are missing 
+% GRACE missing months are not stored as NaNs in the file, but are missing
 % from the time dimension. We re-index GRACE onto the 213-month timeline (Apr 2002 - Dec 2019)
 % placing NaNs at missing months.
 grace_file = fullfile(grace_dir, 'grace_corrected_monthly.nc');
@@ -70,16 +70,16 @@ if exist(grace_file, 'file')
     fprintf('[1/6] Loading GRACE TWS anomalies from %s...\n', grace_file);
     tws_raw = ncread(grace_file, 'lwe_thickness');
     tws_raw = clean_nans(tws_raw);
-    
+
     [n_lon, n_lat, n_grace_time] = size(tws_raw);
     tws_grid = nan(n_lon, n_lat, 213); % Pre-allocate 213-timestep grid with NaNs
-    
+
     if exist(dates_file, 'file')
         d_struct = load(dates_file);
         fn = fieldnames(d_struct);
         g_dates = d_struct.(fn{1});
         [g_y, g_m] = ymd(g_dates);
-        
+
         matched_count = 0;
         for k = 1:min(n_grace_time, length(g_dates))
             idx = find(target_ym_y == g_y(k) & target_ym_m == g_m(k));
@@ -127,6 +127,13 @@ et_file = fullfile(processed_dir, 'et_gleam_global_2002_2021.nc');
 if exist(et_file, 'file')
     fprintf('[3/6] Loading GLEAM Evapotranspiration from %s...\n', et_file);
     et_raw = ncread(et_file, 'E');
+
+    % Align GLEAM ET grid coordinates to basin map (-180..180 lon, -90..90 lat):
+    % 1. Flip latitude dimension (North->South to South->North)
+    % 2. Shift longitude by 180 deg (360 grid cells) to align [-180..180] spatial domain
+    fprintf('   Aligning GLEAM ET spatial extent (Latitude flip + Longitude 180-deg circshift)...\n');
+    et_raw = circshift(flip(et_raw, 2), [360, 0, 0]);
+
     et_raw = clean_nans(et_raw);
 
     % Conversion: mm/month -> cm/month (/ 10)
@@ -197,11 +204,8 @@ else
     SW_grid = [];
 end
 
-%% Save Standardized Grids
-out_mat = fullfile(processed_dir, 'standardized_grids.mat');
-fprintf('Saving converted spatial grids to %s...\n', out_mat);
-save(out_mat, 'tws_grid', 'P_grid', 'ET_grid', 'Q_grid', 'GW_grid', 'SW_grid', '-v7.3');
-fprintf('=== STEP 1 Complete: All Fluxes Standardized to cm/month ===\n\n');
+%% Retain Standardized Grids in Memory (Intermediate .mat save disabled to save disk space)
+fprintf('=== STEP 1 Complete: All Fluxes Standardized to cm/month (Retained in Memory) ===\n\n');
 
 %% Local Helper Function for NaN Replacement
 function data = replace_fill_values(data)

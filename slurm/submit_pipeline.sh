@@ -46,49 +46,13 @@ cd "$PROJECT_DIR"
 MATLAB_RUN="matlab -nodisplay -nosplash -nodesktop -r"
 
 # =========================================================================
-# STEP 1: Preprocessing & Unit Conversion (cm/month standardization)
+# END-TO-END PIPELINE EXECUTION (In-Memory Processing)
 # =========================================================================
 echo ""
 echo "-----------------------------------------------------------------"
-echo "[STEP 1/5] Running step01_unit_conversion.m..."
+echo "Executing full end-to-end TWS attribution pipeline..."
 echo "-----------------------------------------------------------------"
-$MATLAB_RUN "addpath(genpath('src')); run('src/preprocessing/step01_unit_conversion.m'); exit;"
-
-# =========================================================================
-# STEP 2: Latitude Cosine-Weighted Basin Spatial Aggregation (103 Basins)
-# =========================================================================
-echo ""
-echo "-----------------------------------------------------------------"
-echo "[STEP 2/5] Running step02_aggregate_basins.m..."
-echo "-----------------------------------------------------------------"
-$MATLAB_RUN "addpath(genpath('src')); run('src/preprocessing/step02_aggregate_basins.m'); exit;"
-
-# =========================================================================
-# STEP 3: Parallel Random Forest GRACE Gap Reconstruction (2002-2021)
-# =========================================================================
-echo ""
-echo "-----------------------------------------------------------------"
-echo "[STEP 3/5] Running step03_reconstruct_grace.m..."
-echo "-----------------------------------------------------------------"
-$MATLAB_RUN "addpath(genpath('src')); run('src/gap_filling/step03_reconstruct_grace.m'); exit;"
-
-# =========================================================================
-# STEP 4: Twin RF Machine Learning Attribution (TWSC = M_nat vs M_anthro)
-# =========================================================================
-echo ""
-echo "-----------------------------------------------------------------"
-echo "[STEP 4/5] Running step04_run_attribution.m..."
-echo "-----------------------------------------------------------------"
-$MATLAB_RUN "addpath(genpath('src')); run('src/modeling/step04_run_attribution.m'); exit;"
-
-# =========================================================================
-# STEP 5: 3-Year Block CV Validation & Modified Mann-Kendall Trend Testing
-# =========================================================================
-echo ""
-echo "-----------------------------------------------------------------"
-echo "[STEP 5/5] Running step05_validate_and_trends.m..."
-echo "-----------------------------------------------------------------"
-$MATLAB_RUN "addpath(genpath('src')); run('src/validation/step05_validate_and_trends.m'); exit;"
+$MATLAB_RUN "run('run_pipeline_local.m'); exit;"
 
 echo ""
 echo "================================================================="

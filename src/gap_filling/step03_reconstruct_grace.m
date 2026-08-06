@@ -19,7 +19,6 @@
 %     TWS_reconstructed (N_time x 103 continuous matrix), grace_dates, oob_rmse
 % =========================================================================
 
-clear; clc;
 fprintf('=== STEP 3: Starting Random Forest GRACE Gap-Filling & Reconstruction ===\n');
 
 %% Directory & Data Loading
@@ -30,20 +29,25 @@ if isempty(project_root) || ~exist(fullfile(project_root, 'data'), 'dir')
 end
 
 processed_dir = fullfile(project_root, 'data', 'processed');
-input_mat     = fullfile(processed_dir, 'basin_time_series.mat');
 
-if ~exist(input_mat, 'file')
-    error('Input time-series file %s not found! Please run step02_aggregate_basins.m first.', input_mat);
+% Check if basin time-series variables are in memory
+if ~exist('P_basin', 'var') || isempty(P_basin) || ~exist('TWS_basin', 'var') || isempty(TWS_basin)
+    input_mat = fullfile(processed_dir, 'basin_time_series.mat');
+    if exist(input_mat, 'file')
+        fprintf('Loading basin time-series from %s...\n', input_mat);
+        data = load(input_mat);
+        P_basin     = data.P_basin;
+        ET_basin    = data.ET_basin;
+        Q_basin     = data.Q_basin;
+        if isfield(data, 'GW_basin'), GW_basin = data.GW_basin; end
+        if isfield(data, 'SW_basin'), SW_basin = data.SW_basin; end
+        TWS_basin   = data.TWS_basin;
+        grace_dates = data.grace_dates;
+    else
+        fprintf('Basin time-series not in memory. Running step02_aggregate_basins.m...\n');
+        run(fullfile(project_root, 'src', 'preprocessing', 'step02_aggregate_basins.m'));
+    end
 end
-
-fprintf('Loading basin time-series from %s...\n', input_mat);
-data = load(input_mat);
-
-P_basin     = data.P_basin;     % N_time x 103 (cm/month)
-ET_basin    = data.ET_basin;    % N_time x 103 (cm/month)
-Q_basin     = data.Q_basin;     % N_time x 103 (cm/month)
-TWS_basin   = data.TWS_basin;   % N_time x 103 (cm with NaNs at missing months)
-grace_dates = data.grace_dates; % N_time x 1 datetime vector
 
 [n_time, n_basins] = size(P_basin);
 fprintf('Time series length: %d months | Total Basins: %d\n', n_time, n_basins);
@@ -138,8 +142,8 @@ fprintf('\nRandom Forest reconstruction completed for all %d basins.\n', n_basin
 fprintf('Mean Out-of-Bag (OOB) RMSE across basins: %.3f cm\n', mean(oob_rmse, 'omitnan'));
 fprintf('Mean Out-of-Bag (OOB) R^2 across basins:  %.3f\n', mean(oob_r2, 'omitnan'));
 
-%% Save Reconstructed Continuous TWS Time-Series
-out_mat = fullfile(processed_dir, 'grace_reconstructed.mat');
-fprintf('Saving reconstructed continuous TWS matrix to %s...\n', out_mat);
-save(out_mat, 'TWS_reconstructed', 'TWS_basin', 'grace_dates', 'oob_rmse', 'oob_r2', '-v7.3');
-fprintf('=== STEP 3 Complete: Continuous 2002-2021 TWS Dataset Saved ===\n\n');
+%% Save Reconstructed Continuous TWS Time-Series to Disk
+tws_file = fullfile(processed_dir, 'grace_reconstructed.mat');
+fprintf('Saving reconstructed TWS to %s...\n', tws_file);
+save(tws_file, 'TWS_reconstructed', 'grace_dates', 'oob_rmse', 'oob_r2', '-v7.3');
+fprintf('=== STEP 3 Complete: Continuous TWS Dataset Reconstructed & Saved ===\n\n');

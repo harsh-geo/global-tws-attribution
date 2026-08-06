@@ -21,7 +21,6 @@
 %   - outputs/tables/basin_summary_table.csv
 % =========================================================================
 
-clear; clc;
 fprintf('=== STEP 5: Starting Block CV Validation & Modified Mann-Kendall Trend Analysis ===\n');
 
 %% Directory Setup & Data Loading
@@ -33,27 +32,52 @@ end
 
 processed_dir = fullfile(project_root, 'data', 'processed');
 table_dir     = fullfile(project_root, 'outputs', 'tables');
-attr_mat      = fullfile(table_dir, 'attribution_results.mat');
-tws_mat       = fullfile(processed_dir, 'grace_reconstructed.mat');
-ts_mat        = fullfile(processed_dir, 'basin_time_series.mat');
-
-if ~exist(attr_mat, 'file')
-    error('Attribution results file %s not found! Run step04_run_attribution.m first.', attr_mat);
+if ~exist('TWSC_obs', 'var') || isempty(TWSC_obs)
+    attr_mat = fullfile(table_dir, 'attribution_results.mat');
+    if exist(attr_mat, 'file')
+        fprintf('Loading attribution results from %s...\n', attr_mat);
+        attr_data = load(attr_mat);
+        TWSC_obs         = attr_data.TWSC_obs;
+        TWSC_pred_nat    = attr_data.TWSC_pred_nat;
+        TWSC_pred_anthro = attr_data.TWSC_pred_anthro;
+        R2_nat           = attr_data.R2_nat;
+        R2_anthro        = attr_data.R2_anthro;
+        Delta_R2         = attr_data.Delta_R2;
+        RMSE_nat         = attr_data.RMSE_nat;
+        RMSE_anthro      = attr_data.RMSE_anthro;
+        feature_importance = attr_data.feature_importance;
+    else
+        fprintf('Attribution results not in memory. Running step04_run_attribution.m...\n');
+        run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
+    end
 end
 
-fprintf('Loading attribution results and continuous TWS data...\n');
-attr_data = load(attr_mat);
-tws_data  = load(tws_mat);
-ts_data   = load(ts_mat);
+if ~exist('TWS_reconstructed', 'var') || isempty(TWS_reconstructed)
+    tws_mat = fullfile(processed_dir, 'grace_reconstructed.mat');
+    if exist(tws_mat, 'file')
+        tws_data = load(tws_mat);
+        TWS_reconstructed = tws_data.TWS_reconstructed;
+    end
+end
+if exist('TWS_reconstructed', 'var') && ~isempty(TWS_reconstructed)
+    TWS = TWS_reconstructed;
+end
 
-TWS         = tws_data.TWS_reconstructed; % N_time x 103 continuous TWS (cm)
-TWSC_obs    = attr_data.TWSC_obs;          % N_time x 103 (cm/month)
-P_basin     = ts_data.P_basin;
-ET_basin    = ts_data.ET_basin;
-Q_basin     = ts_data.Q_basin;
-GW_basin    = ts_data.GW_basin;
-SW_basin    = ts_data.SW_basin;
-grace_dates = tws_data.grace_dates;
+if ~exist('P_basin', 'var') || isempty(P_basin) || ...
+   ~exist('GW_basin', 'var') || isempty(GW_basin) || ...
+   ~exist('SW_basin', 'var') || isempty(SW_basin)
+    ts_mat = fullfile(processed_dir, 'basin_time_series.mat');
+    if exist(ts_mat, 'file')
+        ts_data = load(ts_mat);
+        P_basin  = ts_data.P_basin;
+        ET_basin = ts_data.ET_basin;
+        Q_basin  = ts_data.Q_basin;
+        GW_basin = ts_data.GW_basin;
+        SW_basin = ts_data.SW_basin;
+        if isfield(ts_data, 'TWS_basin'), TWS_basin = ts_data.TWS_basin; end
+        if isfield(ts_data, 'grace_dates'), grace_dates = ts_data.grace_dates; end
+    end
+end
 
 [n_time, n_basins] = size(TWS);
 fprintf('Datasets loaded: %d months | %d basins.\n', n_time, n_basins);
@@ -153,12 +177,12 @@ parfor b = 1:n_basins
         % Natural Model Metrics
         NSE_nat(b)     = compute_nse(y_v, y_nat_v);
         KGE_nat(b)     = compute_kge(y_v, y_nat_v);
-        RMSE_cv_nat(b) = sqrt(mean((y_v - y_nat_v).^2));
+        RMSE_cv_nat(b) = sqrt(mean((y_v - y_nat_v).^2, 'omitnan'));
         
         % Anthropogenic Model Metrics
         NSE_anthro(b)     = compute_nse(y_v, y_ant_v);
         KGE_anthro(b)     = compute_kge(y_v, y_ant_v);
-        RMSE_cv_anthro(b) = sqrt(mean((y_v - y_ant_v).^2));
+        RMSE_cv_anthro(b) = sqrt(mean((y_v - y_ant_v).^2, 'omitnan'));
     end
 end
 
@@ -206,9 +230,25 @@ fprintf('Mean TWS Trend Rate across declining basins: %.2f cm/year\n', ...
 %% 3. Save Summary Outputs & CSV Report Table
 %% =========================================================================
 out_mat = fullfile(table_dir, 'validation_and_trends.mat');
-save(out_mat, 'NSE_nat', 'NSE_anthro', 'KGE_nat', 'KGE_anthro', ...
-              'RMSE_cv_nat', 'RMSE_cv_anthro', 'TWSC_cv_nat', 'TWSC_cv_anthro', ...
-              'tws_trend_slope', 'mk_p_value', 'mk_h_sig', '-v7.3');
+fprintf('Saving final master pipeline results matrix to %s...\n', out_mat);
+
+% Compile all available final pipeline metrics and series into single final MAT file
+vars_to_save = {'NSE_nat', 'NSE_anthro', 'KGE_nat', 'KGE_anthro', ...
+                'RMSE_cv_nat', 'RMSE_cv_anthro', 'TWSC_cv_nat', 'TWSC_cv_anthro', ...
+                'tws_trend_slope', 'mk_p_value', 'mk_h_sig'};
+
+optional_vars = {'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
+                 'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
+                 'TWS_reconstructed', 'TWS_basin', 'grace_dates', 'oob_rmse', 'oob_r2', ...
+                 'P_basin', 'ET_basin', 'Q_basin', 'GW_basin', 'SW_basin'};
+
+for i = 1:length(optional_vars)
+    if exist(optional_vars{i}, 'var')
+        vars_to_save{end+1} = optional_vars{i};
+    end
+end
+
+save(out_mat, vars_to_save{:}, '-v7.3');
 
 % Export Publication-Grade CSV Summary Table
 csv_file = fullfile(table_dir, 'basin_summary_table.csv');
@@ -233,16 +273,45 @@ fprintf('=== STEP 5 Complete: Validation & Trend Analysis Saved ===\n\n');
 
 function nse = compute_nse(obs, sim)
     % Nash-Sutcliffe Efficiency (NSE)
-    numerator   = sum((obs - sim).^2);
-    denominator = sum((obs - mean(obs)).^2);
-    nse = 1 - (numerator / denominator);
+    valid = ~isnan(obs) & ~isnan(sim);
+    if sum(valid) < 5
+        nse = NaN;
+        return;
+    end
+    obs = obs(valid);
+    sim = sim(valid);
+    numerator   = sum((obs - sim).^2, 'omitnan');
+    denominator = sum((obs - mean(obs, 'omitnan')).^2, 'omitnan');
+    if denominator == 0
+        nse = NaN;
+    else
+        nse = 1 - (numerator / denominator);
+    end
 end
 
 function kge = compute_kge(obs, sim)
     % Kling-Gupta Efficiency (KGE)
+    valid = ~isnan(obs) & ~isnan(sim);
+    if sum(valid) < 5
+        kge = NaN;
+        return;
+    end
+    obs = obs(valid);
+    sim = sim(valid);
     r     = corr(obs, sim, 'rows', 'complete');
-    alpha = std(sim) / std(obs);
-    beta  = mean(sim) / mean(obs);
+    std_obs = std(obs, 'omitnan');
+    std_sim = std(sim, 'omitnan');
+    if std_obs == 0 || isnan(std_obs)
+        kge = NaN;
+        return;
+    end
+    alpha = std_sim / std_obs;
+    mean_obs = mean(obs, 'omitnan');
+    if mean_obs == 0 || isnan(mean_obs)
+        kge = NaN;
+        return;
+    end
+    beta  = mean(sim, 'omitnan') / mean_obs;
     kge   = 1 - sqrt((r - 1)^2 + (alpha - 1)^2 + (beta - 1)^2);
 end
 

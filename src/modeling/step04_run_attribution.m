@@ -19,7 +19,6 @@
 %     R2_nat, R2_anthro, Delta_R2, feature_importance, TWSC_obs, TWSC_pred_nat, TWSC_pred_anthro
 % =========================================================================
 
-clear; clc;
 fprintf('=== STEP 4: Starting Twin RF Machine Learning Attribution ===\n');
 
 %% Directory Setup & Data Loading
@@ -37,24 +36,39 @@ if ~exist(output_dir, 'dir')
     fprintf('Created output directory: %s\n', output_dir);
 end
 
-tws_file  = fullfile(processed_dir, 'grace_reconstructed.mat');
-ts_file   = fullfile(processed_dir, 'basin_time_series.mat');
-
-if ~exist(tws_file, 'file')
-    error('Reconstructed TWS file %s not found! Run step03_reconstruct_grace.m first.', tws_file);
+% Check if inputs are in memory
+if ~exist('TWS_reconstructed', 'var') || isempty(TWS_reconstructed)
+    tws_file = fullfile(processed_dir, 'grace_reconstructed.mat');
+    if exist(tws_file, 'file')
+        fprintf('Loading reconstructed TWS from %s...\n', tws_file);
+        tws_data = load(tws_file);
+        TWS_reconstructed = tws_data.TWS_reconstructed;
+    else
+        fprintf('Reconstructed TWS not in memory. Running step03_reconstruct_grace.m...\n');
+        run(fullfile(project_root, 'src', 'gap_filling', 'step03_reconstruct_grace.m'));
+    end
 end
+TWS = TWS_reconstructed;
 
-fprintf('Loading reconstructed TWS and hydroclimate predictors...\n');
-tws_data = load(tws_file);
-ts_data  = load(ts_file);
-
-TWS         = tws_data.TWS_reconstructed; % N_time x 103 continuous cm depth
-P_basin     = ts_data.P_basin;             % cm/month
-ET_basin    = ts_data.ET_basin;            % cm/month
-Q_basin     = ts_data.Q_basin;             % cm/month
-GW_basin    = ts_data.GW_basin;            % cm/month
-SW_basin    = ts_data.SW_basin;            % cm/month
-grace_dates = tws_data.grace_dates;
+if ~exist('P_basin', 'var') || isempty(P_basin) || ...
+   ~exist('ET_basin', 'var') || isempty(ET_basin) || ...
+   ~exist('GW_basin', 'var') || isempty(GW_basin) || ...
+   ~exist('SW_basin', 'var') || isempty(SW_basin)
+    ts_file = fullfile(processed_dir, 'basin_time_series.mat');
+    if exist(ts_file, 'file')
+        fprintf('Loading basin time-series from %s...\n', ts_file);
+        ts_data = load(ts_file);
+        P_basin     = ts_data.P_basin;
+        ET_basin    = ts_data.ET_basin;
+        Q_basin     = ts_data.Q_basin;
+        GW_basin    = ts_data.GW_basin;
+        SW_basin    = ts_data.SW_basin;
+        grace_dates = ts_data.grace_dates;
+    else
+        fprintf('Basin time-series not in memory. Running step02_aggregate_basins.m...\n');
+        run(fullfile(project_root, 'src', 'preprocessing', 'step02_aggregate_basins.m'));
+    end
+end
 
 [n_time, n_basins] = size(TWS);
 fprintf('Time points: %d | Basins: %d\n', n_time, n_basins);
@@ -160,10 +174,10 @@ parfor b = 1:n_basins
     
     y_oob_nat = oobPredict(rf_nat);
     res_nat   = y_val - y_oob_nat;
-    ss_tot    = sum((y_val - mean(y_val)).^2);
+    ss_tot    = sum((y_val - mean(y_val, 'omitnan')).^2, 'omitnan');
     
-    R2_nat(b)   = 1 - (sum(res_nat.^2) / ss_tot);
-    RMSE_nat(b) = sqrt(mean(res_nat.^2));
+    R2_nat(b)   = 1 - (sum(res_nat.^2, 'omitnan') / ss_tot);
+    RMSE_nat(b) = sqrt(mean(res_nat.^2, 'omitnan'));
     
     twsc_nat_b(valid_mask) = y_oob_nat;
     TWSC_pred_nat(:, b)    = twsc_nat_b;
@@ -178,8 +192,8 @@ parfor b = 1:n_basins
     y_oob_ant = oobPredict(rf_anthro);
     res_ant   = y_val - y_oob_ant;
     
-    R2_anthro(b)   = 1 - (sum(res_ant.^2) / ss_tot);
-    RMSE_anthro(b) = sqrt(mean(res_ant.^2));
+    R2_anthro(b)   = 1 - (sum(res_ant.^2, 'omitnan') / ss_tot);
+    RMSE_anthro(b) = sqrt(mean(res_ant.^2, 'omitnan'));
     
     twsc_anthro_b(valid_mask) = y_oob_ant;
     TWSC_pred_anthro(:, b)    = twsc_anthro_b;
@@ -196,10 +210,9 @@ fprintf('Average R^2 (Natural Model M_nat):     %.3f\n', mean(R2_nat, 'omitnan')
 fprintf('Average R^2 (Anthropogenic M_anthro):  %.3f\n', mean(R2_anthro, 'omitnan'));
 fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitnan'));
 
-%% Save Attribution Output
-out_mat = fullfile(output_dir, 'attribution_results.mat');
-fprintf('Saving attribution results matrix to %s...\n', out_mat);
-save(out_mat, 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
-              'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
-              'feature_importance', 'grace_dates', '-v7.3');
-fprintf('=== STEP 4 Complete: Twin Model Attribution Saved ===\n\n');
+%% Save Attribution Results to Disk
+attr_file = fullfile(output_dir, 'attribution_results.mat');
+fprintf('Saving attribution results to %s...\n', attr_file);
+save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
+    'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
+fprintf('=== STEP 4 Complete: Twin Model Attribution Completed & Saved ===\n\n');

@@ -52,10 +52,8 @@ data2/
 │   └── grace_dates.mat
 ├── data/
 │   ├── raw/                             # Raw input files & masks
-│   └── processed/                       # Standardized spatial grids & basin matrices
-│       ├── standardized_grids.mat
-│       ├── basin_map.mat                # 103 major river basin mask grid
-│       └── basin_time_series.mat
+│   └── processed/                       # Mask grid & raw input files (intermediate .mat saves disabled)
+│       └── basin_map.mat                # 103 major river basin mask grid
 ├── src/
 │   ├── preprocessing/
 │   │   ├── step01_unit_conversion.m    # Unit standardization & timeline alignment
@@ -141,6 +139,8 @@ sbatch slurm/submit_pipeline.sh
 
 ## 📊 Outputs & Artifacts
 
-- `data/processed/standardized_grids.mat`: Cleaned 3D spatial grids ($720 \times 360 \times 213$).
-- `data/processed/basin_time_series.mat`: 2D basin time-series matrices ($213 \times 103$).
-- `outputs/tws_attribution_results.mat`: Reconstructed TWS series, twin model metrics ($\Delta R^2$, NSE, KGE), feature importance, and modified Mann-Kendall trend statistics.
+To prevent high disk consumption, intermediate `.mat` files (`standardized_grids.mat`, `basin_time_series.mat`, `grace_reconstructed.mat`, `attribution_results.mat`) are processed in memory and NOT saved to disk.
+
+Only the single **final master result** file and CSV report are saved:
+- `outputs/tables/validation_and_trends.mat`: Final master results containing continuous reconstructed TWS series, twin model metrics ($\Delta R^2$, NSE, KGE, RMSE), feature importance, block CV predictions, and modified Mann-Kendall trend statistics.
+- `outputs/tables/basin_summary_table.csv`: Exported publication-grade CSV summary table.
