@@ -5,13 +5,13 @@
 % =========================================================================
 % PURPOSE:
 %   1. Load aggregated basin time-series from 'data/processed/basin_time_series.mat'.
-%   2. Identify missing observational months in GRACE TWS anomalies (including 
+%   2. Identify missing observational months in GRACE TWS anomalies (including
 %      the 2017-2018 observational gap between GRACE and GRACE-FO).
-%   3. Train an ensemble Random Forest regressor per basin using hydroclimate 
-%      predictors (Precipitation P, Evapotranspiration ET, Runoff Q) during 
+%   3. Train an ensemble Random Forest regressor per basin using hydroclimate
+%      predictors (Precipitation P, Evapotranspiration ET, Runoff Q) during
 %      continuous overlapping observational baseline periods (2002-2017).
 %   4. Predict TWS anomalies for all missing gap months across 2002-2021.
-%   5. HPC Parallel Execution (GEMINI.md Directive): Enforce 'parfor' 
+%   5. HPC Parallel Execution (GEMINI.md Directive): Enforce 'parfor'
 %      parallelization across all 103 river basins.
 %
 % OUTPUT:
@@ -23,7 +23,13 @@ clear; clc;
 fprintf('=== STEP 3: Starting Random Forest GRACE Gap-Filling & Reconstruction ===\n');
 
 %% Directory & Data Loading
-processed_dir = fullfile('data', 'processed');
+script_dir   = fileparts(mfilename('fullpath'));
+project_root = fileparts(fileparts(script_dir));
+if isempty(project_root) || ~exist(fullfile(project_root, 'data'), 'dir')
+    project_root = pwd;
+end
+
+processed_dir = fullfile(project_root, 'data', 'processed');
 input_mat     = fullfile(processed_dir, 'basin_time_series.mat');
 
 if ~exist(input_mat, 'file')
@@ -70,13 +76,13 @@ parfor b = 1:n_basins
     p_b   = P_basin(:, b);
     et_b  = ET_basin(:, b);
     q_b   = Q_basin(:, b);
-    
+
     % Check if predictor data exists
     if all(isnan(p_b)) || all(isnan(et_b))
         warning('Basin %d has missing predictor data. Skipping reconstruction.', b);
         continue;
     end
-    
+
     % Compute hydroclimate water balance residual as additional predictor: P - ET - Q
     if ~isempty(q_b) && ~all(isnan(q_b))
         p_minus_et_q = p_b - et_b - q_b;
@@ -85,42 +91,42 @@ parfor b = 1:n_basins
         p_minus_et = p_b - et_b;
         X_all = [p_b, et_b, p_minus_et];
     end
-    
+
     % Identify valid training months: GRACE TWS is observed AND predictors are valid
     train_mask = ~isnan(tws_b) & ~any(isnan(X_all), 2);
-    
+
     % Identify gap months to predict: GRACE TWS is NaN BUT predictors are valid
     predict_mask = isnan(tws_b) & ~any(isnan(X_all), 2);
-    
+
     if sum(train_mask) < 20
         % Insufficient baseline observations for training
         continue;
     end
-    
+
     X_train = X_all(train_mask, :);
     y_train = tws_b(train_mask);
-    
+
     % Train Random Forest Ensemble Regressor using TreeBagger
     rf_model = TreeBagger(n_trees, X_train, y_train, ...
         'Method', 'regression', ...
         'OOBPrediction', 'on', ...
         'MinLeafSize', min_leaf_size, ...
         'OOBPredictorImportance', 'off');
-    
+
     % Evaluate Out-of-Bag (OOB) Performance on baseline training data
     y_oob = oobPredict(rf_model);
     res   = y_train - y_oob;
     oob_rmse(b) = sqrt(mean(res.^2, 'omitnan'));
-    
+
     SS_tot = sum((y_train - mean(y_train, 'omitnan')).^2);
     SS_res = sum(res.^2, 'omitnan');
     oob_r2(b) = 1 - (SS_res / SS_tot);
-    
+
     % Predict TWS for missing gap months
     if any(predict_mask)
         X_predict = X_all(predict_mask, :);
         y_pred = predict(rf_model, X_predict);
-        
+
         % Insert reconstructed predictions into final TWS matrix
         tws_reconstructed_b = tws_b;
         tws_reconstructed_b(predict_mask) = y_pred;

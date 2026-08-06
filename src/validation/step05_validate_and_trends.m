@@ -25,11 +25,17 @@ clear; clc;
 fprintf('=== STEP 5: Starting Block CV Validation & Modified Mann-Kendall Trend Analysis ===\n');
 
 %% Directory Setup & Data Loading
-processed_dir = fullfile('data', 'processed');
-attr_mat      = fullfile('outputs', 'tables', 'attribution_results.mat');
+script_dir   = fileparts(mfilename('fullpath'));
+project_root = fileparts(fileparts(script_dir));
+if isempty(project_root) || ~exist(fullfile(project_root, 'data'), 'dir')
+    project_root = pwd;
+end
+
+processed_dir = fullfile(project_root, 'data', 'processed');
+table_dir     = fullfile(project_root, 'outputs', 'tables');
+attr_mat      = fullfile(table_dir, 'attribution_results.mat');
 tws_mat       = fullfile(processed_dir, 'grace_reconstructed.mat');
 ts_mat        = fullfile(processed_dir, 'basin_time_series.mat');
-table_dir     = fullfile('outputs', 'tables');
 
 if ~exist(attr_mat, 'file')
     error('Attribution results file %s not found! Run step04_run_attribution.m first.', attr_mat);

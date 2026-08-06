@@ -20,9 +20,15 @@ clear; clc;
 fprintf('=== STEP 2: Starting Latitude Cosine-Weighted Basin Aggregation ===\n');
 
 %% Directory Setup & Loading Inputs
-processed_dir = fullfile('data', 'processed');
-raw_dir       = fullfile('data', 'raw');
-grace_dir     = fullfile('grace');
+script_dir   = fileparts(mfilename('fullpath'));
+project_root = fileparts(fileparts(script_dir));
+if isempty(project_root) || ~exist(fullfile(project_root, 'data'), 'dir')
+    project_root = pwd;
+end
+
+processed_dir = fullfile(project_root, 'data', 'processed');
+raw_dir       = fullfile(project_root, 'data', 'raw');
+grace_dir     = fullfile(project_root, 'grace');
 
 grid_mat  = fullfile(processed_dir, 'standardized_grids.mat');
 basin_mat = fullfile(processed_dir, 'basin_map.mat');
@@ -40,22 +46,23 @@ end
 
 fprintf('Loading basin masks from %s...\n', basin_mat);
 basin_data = load(basin_mat);
-% Handle variations in struct/variable naming inside basin_map.mat
+% Handle basin_map variable inside basin_map.mat (values 1..103, non-basins NaN)
 if isfield(basin_data, 'basin_map')
-    basin_mask = basin_data.basin_map; % Expecting 720x360 or 360x720 matrix with IDs 1..103
+    basin_mask = double(basin_data.basin_map);
 elseif isfield(basin_data, 'basins')
-    basin_mask = basin_data.basins;
+    basin_mask = double(basin_data.basins);
 else
     fn = fieldnames(basin_data);
-    basin_mask = basin_data.(fn{1});
+    basin_mask = double(basin_data.(fn{1}));
 end
 
-% Standardize orientation to [720 x 360] (Lon x Lat) if transposed
-if size(basin_mask, 1) == 360 && size(basin_mask, 2) == 720
-    basin_mask = basin_mask';
+% Get total number of basins ignoring NaNs
+n_basins = max(basin_mask(~isnan(basin_mask)));
+if isempty(n_basins)
+    n_basins = 103;
+else
+    n_basins = double(n_basins);
 end
-
-n_basins = max(basin_mask(:));
 fprintf('Found %d major river basins in mask matrix.\n', n_basins);
 
 %% Construct Latitude Cosine Weighting Matrix
@@ -133,20 +140,8 @@ else
 end
 clear grids; % Memory Directive: Clear heavy 3D grid immediately
 
-%% Load Date Vector
-dates_file = fullfile(grace_dir, 'grace_dates.mat');
-if ~exist(dates_file, 'file')
-    dates_file = fullfile(raw_dir, 'grace_dates.mat');
-end
-
-if exist(dates_file, 'file')
-    date_struct = load(dates_file);
-    fn = fieldnames(date_struct);
-    grace_dates = date_struct.(fn{1});
-else
-    % Default monthly time sequence 2002 to 2021 (240 months)
-    grace_dates = datetime(2002, 1, 1) + calmonths(0:239)';
-end
+%% Construct Continuous Monthly Date Vector (Apr 2002 to Dec 2019 = 213 months)
+grace_dates = (datetime(2002, 4, 1) + calmonths(0:212))';
 
 %% Save Basin Time-Series File
 out_mat = fullfile(processed_dir, 'basin_time_series.mat');
@@ -157,17 +152,30 @@ fprintf('=== STEP 2 Complete: 103-Basin Cosine-Weighted Time-Series Saved ===\n\
 %% Helper Function for Latitude Cosine-Weighted Spatial Aggregation
 function basin_series = extract_weighted_basin_series(grid_3d, basin_mask, cos_weights, n_basins)
     % INPUTS:
-    %   grid_3d     - 3D matrix [Lon x Lat x Time] (e.g. 720 x 360 x N_time)
-    %   basin_mask  - 2D matrix [720 x 360] containing basin IDs (1..n_basins)
-    %   cos_weights - 2D matrix [720 x 360] containing cosd(latitude)
+    %   grid_3d     - 3D matrix [Lon x Lat x Time] or [Lat x Lon x Time]
+    %   basin_mask  - 2D matrix matching spatial dimensions of grid_3d (1..103, NaNs for non-basins)
+    %   cos_weights - 2D matrix matching spatial dimensions of grid_3d
     %   n_basins    - Total number of basins (103)
     % OUTPUT:
     %   basin_series - 2D matrix [N_time x n_basins]
     
-    [n_lon, n_lat, n_time] = size(grid_3d);
+    [n_dim1, n_dim2, n_time] = size(grid_3d);
+    
+    % Ensure basin_mask and cos_weights match spatial dimensions of grid_3d
+    if size(basin_mask, 1) ~= n_dim1 || size(basin_mask, 2) ~= n_dim2
+        if size(basin_mask, 1) == n_dim2 && size(basin_mask, 2) == n_dim1
+            basin_mask = basin_mask';
+        end
+    end
+    if size(cos_weights, 1) ~= n_dim1 || size(cos_weights, 2) ~= n_dim2
+        if size(cos_weights, 1) == n_dim2 && size(cos_weights, 2) == n_dim1
+            cos_weights = cos_weights';
+        end
+    end
+    
     basin_series = nan(n_time, n_basins);
     
-    % Loop over each basin ID
+    % Loop over each basin ID from 1 to n_basins
     for b = 1:n_basins
         basin_idx = (basin_mask == b);
         if ~any(basin_idx(:))
@@ -177,13 +185,13 @@ function basin_series = extract_weighted_basin_series(grid_3d, basin_mask, cos_w
         % Extract spatial weights for this basin
         w_b = cos_weights(basin_idx);
         
-        % Vectorized time extraction across all timesteps for this basin
+        % Compute spatial weighted average across all timesteps for this basin
         for t = 1:n_time
             slice_t = grid_3d(:, :, t);
             vals_t  = slice_t(basin_idx);
             
-            % Filter out NaNs for weighted average computation
-            valid_mask = ~isnan(vals_t);
+            % Filter out NaNs in data and weights
+            valid_mask = ~isnan(vals_t) & ~isnan(w_b);
             if any(valid_mask)
                 basin_series(t, b) = sum(vals_t(valid_mask) .* w_b(valid_mask)) / sum(w_b(valid_mask));
             end

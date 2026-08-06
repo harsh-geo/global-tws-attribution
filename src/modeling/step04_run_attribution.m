@@ -23,8 +23,14 @@ clear; clc;
 fprintf('=== STEP 4: Starting Twin RF Machine Learning Attribution ===\n');
 
 %% Directory Setup & Data Loading
-processed_dir = fullfile('data', 'processed');
-output_dir    = fullfile('outputs', 'tables');
+script_dir   = fileparts(mfilename('fullpath'));
+project_root = fileparts(fileparts(script_dir));
+if isempty(project_root) || ~exist(fullfile(project_root, 'data'), 'dir')
+    project_root = pwd;
+end
+
+processed_dir = fullfile(project_root, 'data', 'processed');
+output_dir    = fullfile(project_root, 'outputs', 'tables');
 
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);

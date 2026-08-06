@@ -27,9 +27,15 @@ clear; clc;
 fprintf('=== STEP 1: Starting Unit Conversion & Data Sanitization ===\n');
 
 %% Directory Configuration & Setup
-raw_dir       = fullfile('data', 'raw');
-processed_dir = fullfile('data', 'processed');
-grace_dir     = fullfile('grace');
+script_dir   = fileparts(mfilename('fullpath'));
+project_root = fileparts(fileparts(script_dir));
+if isempty(project_root) || ~exist(fullfile(project_root, 'data'), 'dir')
+    project_root = pwd;
+end
+
+raw_dir       = fullfile(project_root, 'data', 'raw');
+processed_dir = fullfile(project_root, 'data', 'processed');
+grace_dir     = fullfile(project_root, 'grace');
 
 if ~exist(processed_dir, 'dir')
     mkdir(processed_dir);
@@ -40,21 +46,54 @@ end
 % Replaces non-physical fill values (-999, values > 1e19) with standard MATLAB NaN
 clean_nans = @(x) double(replace_fill_values(x));
 
+%% Target Timeline Setup (Apr 2002 to Dec 2019 = 213 months)
+target_dates = (datetime(2002, 4, 1) + calmonths(0:212))'; % 213 x 1 datetime vector
+[target_ym_y, target_ym_m] = ymd(target_dates);
+
 %% 1. Process GRACE / GRACE-FO TWS Anomalies (from grace/)
 % -------------------------------------------------------------------------
-% GRACE TWS is stored as Liquid Water Equivalent (LWE) thickness (in cm) hence no unit conversion is needed.
+% GRACE TWS is stored as Liquid Water Equivalent (LWE) thickness (in cm).
+% GRACE missing months are not stored as NaNs in the file, but are missing 
+% from the time dimension. We re-index GRACE onto the 213-month timeline (Apr 2002 - Dec 2019)
+% placing NaNs at missing months.
 grace_file = fullfile(grace_dir, 'grace_corrected_monthly.nc');
+dates_file = fullfile(grace_dir, 'grace_dates.mat');
+
 if ~exist(grace_file, 'file')
     grace_file = fullfile(raw_dir, 'grace_corrected_monthly.nc');
+end
+if ~exist(dates_file, 'file')
+    dates_file = fullfile(raw_dir, 'grace_dates.mat');
 end
 
 if exist(grace_file, 'file')
     fprintf('[1/6] Loading GRACE TWS anomalies from %s...\n', grace_file);
     tws_raw = ncread(grace_file, 'lwe_thickness');
-
     tws_raw = clean_nans(tws_raw);
-
-    tws_grid = tws_raw; % Already in cm
+    
+    [n_lon, n_lat, n_grace_time] = size(tws_raw);
+    tws_grid = nan(n_lon, n_lat, 213); % Pre-allocate 213-timestep grid with NaNs
+    
+    if exist(dates_file, 'file')
+        d_struct = load(dates_file);
+        fn = fieldnames(d_struct);
+        g_dates = d_struct.(fn{1});
+        [g_y, g_m] = ymd(g_dates);
+        
+        matched_count = 0;
+        for k = 1:min(n_grace_time, length(g_dates))
+            idx = find(target_ym_y == g_y(k) & target_ym_m == g_m(k));
+            if ~isempty(idx)
+                tws_grid(:, :, idx(1)) = tws_raw(:, :, k);
+                matched_count = matched_count + 1;
+            end
+        end
+        fprintf('   Mapped %d observed GRACE months onto 213-month timeline (Apr 2002 - Dec 2019).\n', matched_count);
+    else
+        n_copy = min(n_grace_time, 213);
+        tws_grid(:, :, 1:n_copy) = tws_raw(:, :, 1:n_copy);
+        fprintf('   grace_dates.mat not found. Copied first %d timesteps into timeline.\n', n_copy);
+    end
     clear tws_raw;
 else
     warning('GRACE file %s not found. Proceeding assuming downstream dummy placeholder.', grace_file);
