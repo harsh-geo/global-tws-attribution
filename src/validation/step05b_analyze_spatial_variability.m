@@ -49,7 +49,18 @@ std_beta_anthro  = nan(n_basins, 6);
 std_delta_r2     = nan(n_basins, 1);
 
 %% Calculation Loop
+if usejava('desktop')
+    h_wb = waitbar(0, 'Analyzing spatial variability...');
+else
+    h_wb = [];
+end
+
 for b = 1:n_basins
+    if ~isempty(h_wb)
+        waitbar(b / n_basins, h_wb, sprintf('Analyzing basin %d / %d', b, n_basins));
+    elseif mod(b, 10) == 0 || b == 1 || b == n_basins
+        fprintf('  -> Analyzing basin %d / %d...\n', b, n_basins);
+    end
     b_nat = beta_nat_gridwise{b};    % 4 x N_pixels
     b_ant = beta_anthro_gridwise{b}; % 6 x N_pixels
     dr2   = Delta_R2_gridwise{b};    % 1 x N_pixels
@@ -67,6 +78,10 @@ for b = 1:n_basins
     std_beta_nat(b, :)    = std(b_nat, 0, 2, 'omitnan')';
     std_beta_anthro(b, :) = std(b_ant, 0, 2, 'omitnan')';
     std_delta_r2(b)       = std(dr2, 0, 2, 'omitnan');
+end
+
+if exist('h_wb', 'var') && ~isempty(h_wb) && isvalid(h_wb)
+    close(h_wb);
 end
 
 %% Write Overall Equations to CSV for Easy Reading

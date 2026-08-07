@@ -83,6 +83,15 @@ end
 
 fprintf('\nRunning Twin MLR Attribution Models in parallel across %d basins...\n', n_basins);
 
+% Set up DataQueue for parfor progress
+dq = parallel.pool.DataQueue;
+if usejava('desktop')
+    h_wb = waitbar(0, 'Running MLR Attribution...');
+    afterEach(dq, @(~) update_waitbar(h_wb, n_basins));
+else
+    afterEach(dq, @(~) update_waitbar([], n_basins));
+end
+
 %% Parfor Loop over Basins
 dt = 1.0;
 parfor b = 1:n_basins
@@ -179,6 +188,13 @@ parfor b = 1:n_basins
     R2_nat_gridwise{b}      = r2_n;
     R2_anthro_gridwise{b}   = r2_a;
     Delta_R2_gridwise{b}    = dr2;
+    
+    % Update progress
+    send(dq, b);
+end
+
+if exist('h_wb', 'var') && ~isempty(h_wb) && isvalid(h_wb)
+    close(h_wb);
 end
 
 fprintf('\nAttribution complete.\n');
@@ -189,3 +205,23 @@ fprintf('Saving grid-wise attribution results to %s...\n', attr_file);
 save(attr_file, 'beta_nat_gridwise', 'beta_anthro_gridwise', ...
     'R2_nat_gridwise', 'R2_anthro_gridwise', 'Delta_R2_gridwise', 'pixel_coords', '-v7.3');
 fprintf('=== STEP 4c Complete ===\n\n');
+
+%% Helper Function for Parfor Progress
+function update_waitbar(h_wb, n_total)
+    persistent count;
+    if isempty(count)
+        count = 1;
+    else
+        count = count + 1;
+    end
+    
+    if ~isempty(h_wb) && isvalid(h_wb)
+        waitbar(count / n_total, h_wb, sprintf('Running Attribution basin %d / %d', count, n_total));
+    elseif mod(count, 10) == 0 || count == 1 || count == n_total
+        fprintf('  -> Attribution basin %d / %d...\n', count, n_total);
+    end
+    
+    if count == n_total
+        count = []; % Reset for next run
+    end
+end

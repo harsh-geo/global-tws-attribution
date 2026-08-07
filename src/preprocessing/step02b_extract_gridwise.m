@@ -78,7 +78,20 @@ pixel_coords = cell(n_basins, 1); % Store (dim1, dim2) for each pixel
 
 %% Extraction Loop
 fprintf('Extracting pixel time-series for %d basins...\n', n_basins);
+
+% Set up waitbar
+if usejava('desktop')
+    h_wb = waitbar(0, 'Extracting grid-wise data...');
+else
+    h_wb = [];
+end
+
 for b = 1:n_basins
+    if ~isempty(h_wb)
+        waitbar(b / n_basins, h_wb, sprintf('Extracting basin %d / %d', b, n_basins));
+    elseif mod(b, 10) == 0 || b == 1 || b == n_basins
+        fprintf('  -> Extracting basin %d / %d...\n', b, n_basins);
+    end
     % Find linear indices of all pixels belonging to basin b
     idx_b = find(basin_mask == b);
     n_pixels = length(idx_b);
@@ -132,6 +145,10 @@ for b = 1:n_basins
     Q_gridwise{b}   = q_b;
     GW_gridwise{b}  = gw_b;
     SW_gridwise{b}  = sw_b;
+end
+
+if exist('h_wb', 'var') && ~isempty(h_wb) && isvalid(h_wb)
+    close(h_wb);
 end
 
 % Clear heavy 3D grids

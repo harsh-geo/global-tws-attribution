@@ -62,6 +62,15 @@ min_leaf_size = 5;
 
 fprintf('\nRunning ML (Random Forest) gap-filling in parallel across %d basins...\n', n_basins);
 
+% Set up DataQueue for parfor progress
+dq = parallel.pool.DataQueue;
+if usejava('desktop')
+    h_wb = waitbar(0, 'Gap-filling grid-wise data (RF)...');
+    afterEach(dq, @(~) update_waitbar(h_wb, n_basins));
+else
+    afterEach(dq, @(~) update_waitbar([], n_basins));
+end
+
 %% Parfor Parallel Execution Loop Across 103 River Basins
 parfor b = 1:n_basins
     tws_b = TWS_gridwise{b};
@@ -126,6 +135,13 @@ parfor b = 1:n_basins
     end
     
     TWS_reconstructed_gridwise{b} = tws_recon_b;
+    
+    % Update progress
+    send(dq, b);
+end
+
+if exist('h_wb', 'var') && ~isempty(h_wb) && isvalid(h_wb)
+    close(h_wb);
 end
 
 fprintf('\nML reconstruction completed for all %d basins.\n', n_basins);
@@ -135,3 +151,24 @@ tws_file = fullfile(processed_dir, 'grace_gridwise_reconstructed.mat');
 fprintf('Saving reconstructed TWS to %s...\n', tws_file);
 save(tws_file, 'TWS_reconstructed_gridwise', 'grace_dates', '-v7.3');
 fprintf('=== STEP 3b Complete ===\n\n');
+
+%% Helper Function for Parfor Progress
+function update_waitbar(h_wb, n_total)
+    persistent count;
+    if isempty(count)
+        count = 1;
+    else
+        count = count + 1;
+    end
+    
+    if ~isempty(h_wb) && isvalid(h_wb)
+        waitbar(count / n_total, h_wb, sprintf('Gap-filling basin %d / %d', count, n_total));
+    elseif mod(count, 10) == 0 || count == 1 || count == n_total
+        fprintf('  -> Gap-filling basin %d / %d...\n', count, n_total);
+    end
+    
+    if count == n_total
+        count = []; % Reset for next run
+    end
+end
+

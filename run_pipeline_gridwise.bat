@@ -1,6 +1,6 @@
 @echo off
 echo =================================================================
-echo   GLOBAL TWS ATTRIBUTION & TREND PIPELINE - GRID-WISE MLR BATCH
+echo   GLOBAL TWS ATTRIBUTION AND TREND PIPELINE - GRID-WISE MLR BATCH
 echo =================================================================
 echo Starting MATLAB pipeline runner...
 matlab -batch "run('run_pipeline_gridwise.m');"
