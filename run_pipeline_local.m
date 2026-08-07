@@ -29,7 +29,7 @@ addpath(genpath(fullfile(project_root, 'visualization')));
 % Choose the attribution modeling approach for STEP 4:
 % 'absolute' : Use raw absolute values for drivers (default)
 % 'anomaly'  : Use anomaly values (mean removed) for all drivers
-attribution_model = 'absolute'; 
+attribution_model = 'anomaly';
 
 
 %% STEP 1: Unit Standardization & Data Sanitization
@@ -54,8 +54,8 @@ fprintf('✓ STEP 3 Completed in %.2f seconds.\n\n', toc(t_step));
 fprintf('--> Running STEP 4: Twin RF Attribution Modeling...\n');
 t_step = tic;
 if strcmpi(attribution_model, 'anomaly')
-    fprintf('    Using ANOMALY values for predictors.\n'); %#ok<UNRCH>
-    run(fullfile(project_root, 'src', 'modeling', 'step04b_run_attribution_anomalies.m')); %#ok<UNRCH>
+    fprintf('    Using ANOMALY values for predictors.\n');
+    run(fullfile(project_root, 'src', 'modeling', 'step04b_run_attribution_anomalies.m'));
 else
     fprintf('    Using ABSOLUTE values for predictors.\n');
     run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
