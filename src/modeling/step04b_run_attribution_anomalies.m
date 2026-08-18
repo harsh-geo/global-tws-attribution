@@ -116,8 +116,12 @@ if isempty(gcp('nocreate'))
     parpool('local', num_cores);
 end
 
-n_trees       = 200;
+n_trees       = 500;
 min_leaf_size = 5;
+
+% Tuning variables to sample to force selection of weak anthropogenic signals
+n_vars_sample_nat = 1;  % M_nat has 3 predictors (P_anom, ET_anom, Q_anom)
+n_vars_sample_ant = 1;  % M_anthro has 5 predictors (P_anom, ET_anom, Q_anom, GW_anom, SW_anom)
 
 % Define baseline indices (2004-2008) for anomaly calculation
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
@@ -184,7 +188,8 @@ parfor b = 1:n_basins
     rf_nat = TreeBagger(n_trees, X_nat_val, y_val, ...
         'Method', 'regression', ...
         'OOBPrediction', 'on', ...
-        'MinLeafSize', min_leaf_size);
+        'MinLeafSize', min_leaf_size, ...
+        'NumPredictorsToSample', n_vars_sample_nat);
     
     y_oob_nat = oobPredict(rf_nat);
     res_nat   = y_val - y_oob_nat;
@@ -201,7 +206,8 @@ parfor b = 1:n_basins
         'Method', 'regression', ...
         'OOBPrediction', 'on', ...
         'OOBPredictorImportance', 'on', ...
-        'MinLeafSize', min_leaf_size);
+        'MinLeafSize', min_leaf_size, ...
+        'NumPredictorsToSample', n_vars_sample_ant);
     
     y_oob_ant = oobPredict(rf_anthro);
     res_ant   = y_val - y_oob_ant;

@@ -32,8 +32,18 @@ end
 
 processed_dir = fullfile(project_root, 'data', 'processed');
 table_dir     = fullfile(project_root, 'outputs', 'tables');
+is_anomaly = false;
+if exist('attribution_model', 'var') && strcmpi(attribution_model, 'anomaly')
+    is_anomaly = true;
+end
+
 if ~exist('TWSC_obs', 'var') || isempty(TWSC_obs)
-    attr_mat = fullfile(table_dir, 'attribution_results.mat');
+    if is_anomaly
+        attr_mat = fullfile(table_dir, 'attribution_results_anomalies.mat');
+    else
+        attr_mat = fullfile(table_dir, 'attribution_results.mat');
+    end
+    
     if exist(attr_mat, 'file')
         fprintf('Loading attribution results from %s...\n', attr_mat);
         attr_data = load(attr_mat);
@@ -47,8 +57,13 @@ if ~exist('TWSC_obs', 'var') || isempty(TWSC_obs)
         RMSE_anthro      = attr_data.RMSE_anthro;
         feature_importance = attr_data.feature_importance;
     else
-        fprintf('Attribution results not in memory. Running step04_run_attribution.m...\n');
-        run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
+        if is_anomaly
+            fprintf('Attribution results not in memory. Running step04b_run_attribution_anomalies.m...\n');
+            run(fullfile(project_root, 'src', 'modeling', 'step04b_run_attribution_anomalies.m'));
+        else
+            fprintf('Attribution results not in memory. Running step04_run_attribution.m...\n');
+            run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
+        end
     end
 end
 
@@ -109,7 +124,13 @@ if isempty(gcp('nocreate'))
     parpool('local', num_cores);
 end
 
-n_trees = 150;
+target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
+baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2008;
+
+n_trees = 500;
+min_leaf_size = 5;
+n_vars_sample_nat = 1;
+n_vars_sample_ant = 1;
 
 parfor b = 1:n_basins
     y = TWSC_obs(:, b);
@@ -134,6 +155,22 @@ parfor b = 1:n_basins
         sw = zeros(n_time, 1);
     end
     
+    if is_anomaly
+        y = deseasonalize_baseline(y, target_dates, baseline_idx);
+        p = deseasonalize_baseline(p, target_dates, baseline_idx);
+        e = deseasonalize_baseline(e, target_dates, baseline_idx);
+        if any(q), q = deseasonalize_baseline(q, target_dates, baseline_idx); end
+        if any(gw), gw = deseasonalize_baseline(gw, target_dates, baseline_idx); end
+        if any(sw), sw = deseasonalize_baseline(sw, target_dates, baseline_idx); end
+    else
+        y = deseasonalize(y, target_dates);
+        p = deseasonalize(p, target_dates);
+        e = deseasonalize(e, target_dates);
+        if any(q), q = deseasonalize(q, target_dates); end
+        if any(gw), gw = deseasonalize(gw, target_dates); end
+        if any(sw), sw = deseasonalize(sw, target_dates); end
+    end
+    
     X_nat = [p, e, q];
     X_ant = [p, e, q, gw, sw];
     
@@ -155,11 +192,13 @@ parfor b = 1:n_basins
         
         if sum(valid_train) > 20 && any(valid_test)
             % Model 1: Natural Baseline
-            rf_nat_k = TreeBagger(n_trees, X_nat(valid_train, :), y(valid_train), 'Method', 'regression');
+            rf_nat_k = TreeBagger(n_trees, X_nat(valid_train, :), y(valid_train), ...
+                'Method', 'regression', 'MinLeafSize', min_leaf_size, 'NumPredictorsToSample', n_vars_sample_nat);
             y_pred_nat_cv(valid_test) = predict(rf_nat_k, X_nat(valid_test, :));
             
             % Model 2: Anthropogenic
-            rf_ant_k = TreeBagger(n_trees, X_ant(valid_train, :), y(valid_train), 'Method', 'regression');
+            rf_ant_k = TreeBagger(n_trees, X_ant(valid_train, :), y(valid_train), ...
+                'Method', 'regression', 'MinLeafSize', min_leaf_size, 'NumPredictorsToSample', n_vars_sample_ant);
             y_pred_ant_cv(valid_test) = predict(rf_ant_k, X_ant(valid_test, :));
         end
     end
@@ -382,4 +421,31 @@ function [p_val, h_sig] = hamed_rao_mann_kendall(y, alpha_sig)
     
     p_val = 2 * (1 - normcdf(abs(Z)));
     h_sig = (p_val < alpha_sig);
+end
+
+%% Helper Function for Deseasonalization
+function x_deseason = deseasonalize(x, dates)
+    x_deseason = nan(size(x));
+    months = month(dates);
+    for m = 1:12
+        idx_m = (months == m);
+        monthly_mean = mean(x(idx_m), 'omitnan');
+        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+    end
+end
+
+%% Helper Function for Deseasonalization with Baseline
+function x_deseason = deseasonalize_baseline(x, dates, baseline_idx)
+    x_deseason = nan(size(x));
+    months = month(dates);
+    for m = 1:12
+        idx_m = (months == m);
+        idx_base = idx_m & baseline_idx;
+        if any(idx_base) && ~all(isnan(x(idx_base)))
+            monthly_mean = mean(x(idx_base), 'omitnan');
+        else
+            monthly_mean = mean(x(idx_m), 'omitnan'); % fallback
+        end
+        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+    end
 end

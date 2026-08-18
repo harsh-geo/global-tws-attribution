@@ -94,7 +94,7 @@ gap_end   = datetime(2018, 5, 1);
 % Shaded region for gap
 ylim_vals = [min(TWS_reconstructed(:, basin_idx)) - 2, max(TWS_reconstructed(:, basin_idx)) + 2];
 patch([gap_start gap_end gap_end gap_start], [ylim_vals(1) ylim_vals(1) ylim_vals(2) ylim_vals(2)], ...
-      [0.9 0.9 0.9], 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    [0.9 0.9 0.9], 'EdgeColor', 'none', 'HandleVisibility', 'off');
 
 % Plot reconstructed line
 h1 = plot(grace_dates, TWS_reconstructed(:, basin_idx), '-', 'Color', [0.8500, 0.3250, 0.0980], 'LineWidth', 1.5, 'DisplayName', 'Reconstructed TWS');

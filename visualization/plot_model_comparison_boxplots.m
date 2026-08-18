@@ -1,7 +1,7 @@
 %% plot_model_comparison_boxplots.m
 % =========================================================================
-% PURPOSE: Create box-and-whisker plots comparing performance metrics 
-%          (NSE, KGE, RMSE) between Natural (M_nat) and Anthropogenic 
+% PURPOSE: Create box-and-whisker plots comparing performance metrics
+%          (NSE, KGE, RMSE) between Natural (M_nat) and Anthropogenic
 %          (M_anthro) models across all 103 basins.
 %          Whiskers extend to 5th and 95th percentiles.
 % =========================================================================
@@ -42,20 +42,20 @@ calc_stats = @(x) [prctile(x, 5), prctile(x, 25), prctile(x, 50), prctile(x, 75)
 for m = 1:3
     subplot(1, 3, m);
     hold on;
-    
+
     val_nat = data_nat{m}(:);
     val_anthro = data_anthro{m}(:);
-    
+
     % Remove NaNs
     val_nat = val_nat(~isnan(val_nat));
     val_anthro = val_anthro(~isnan(val_anthro));
-    
+
     stats_nat = calc_stats(val_nat);
     stats_anthro = calc_stats(val_anthro);
-    
+
     x_centers = [1, 2];
     box_width = 0.4;
-    
+
     % --- Plot M_nat (Blue) ---
     x = x_centers(1);
     s = stats_nat;
@@ -67,17 +67,17 @@ for m = 1:3
     plot([x-0.1 x+0.1], [s(5) s(5)], 'k-', 'LineWidth', 1.2);
     % Box (25 to 75)
     patch([x-box_width/2 x+box_width/2 x+box_width/2 x-box_width/2], ...
-          [s(2) s(2) s(4) s(4)], color_nat, 'FaceAlpha', 0.8, 'EdgeColor', 'k', 'LineWidth', 1.2);
+        [s(2) s(2) s(4) s(4)], color_nat, 'FaceAlpha', 0.8, 'EdgeColor', 'k', 'LineWidth', 1.2);
     % Median
     plot([x-box_width/2 x+box_width/2], [s(3) s(3)], 'k-', 'LineWidth', 2);
-    
+
     % Outliers
     outliers_nat = val_nat(val_nat < s(1) | val_nat > s(5));
     if ~isempty(outliers_nat)
         plot(repmat(x, size(outliers_nat)), outliers_nat, 'o', ...
             'MarkerEdgeColor', color_nat, 'MarkerFaceColor', color_nat, 'MarkerSize', 4);
     end
-    
+
     % --- Plot M_anthro (Orange) ---
     x = x_centers(2);
     s = stats_anthro;
@@ -89,23 +89,23 @@ for m = 1:3
     plot([x-0.1 x+0.1], [s(5) s(5)], 'k-', 'LineWidth', 1.2);
     % Box
     patch([x-box_width/2 x+box_width/2 x+box_width/2 x-box_width/2], ...
-          [s(2) s(2) s(4) s(4)], color_anthro, 'FaceAlpha', 0.8, 'EdgeColor', 'k', 'LineWidth', 1.2);
+        [s(2) s(2) s(4) s(4)], color_anthro, 'FaceAlpha', 0.8, 'EdgeColor', 'k', 'LineWidth', 1.2);
     % Median
     plot([x-box_width/2 x+box_width/2], [s(3) s(3)], 'k-', 'LineWidth', 2);
-    
+
     % Outliers
     outliers_anthro = val_anthro(val_anthro < s(1) | val_anthro > s(5));
     if ~isempty(outliers_anthro)
         plot(repmat(x, size(outliers_anthro)), outliers_anthro, 'o', ...
             'MarkerEdgeColor', color_anthro, 'MarkerFaceColor', color_anthro, 'MarkerSize', 4);
     end
-    
+
     % Formatting
     xticks(x_centers);
     xticklabels({'M_{nat}', 'M_{anthro}'});
     xlim([0.2, 2.8]);
     title(metrics{m}, 'FontSize', 14, 'FontWeight', 'bold');
-    
+
     % Metric-specific formatting
     if strcmp(metrics{m}, 'NSE') || strcmp(metrics{m}, 'KGE')
         ylabel('Score', 'FontSize', 12, 'FontWeight', 'bold');
@@ -114,7 +114,7 @@ for m = 1:3
         ylabel('Error (cm)', 'FontSize', 12, 'FontWeight', 'bold');
         ylim([0, max([val_nat; val_anthro])*1.1]);
     end
-    
+
     grid on;
     box on;
 end

@@ -103,6 +103,8 @@ RMSE_anthro      = nan(1, n_basins);
 
 TWSC_pred_nat    = nan(n_time, n_basins);
 TWSC_pred_anthro = nan(n_time, n_basins);
+TWSC_pred_anthro_upper = nan(n_time, n_basins);
+TWSC_pred_anthro_lower = nan(n_time, n_basins);
 
 % Feature Importance matrix: [103 basins x 5 features]
 % Features: 1:P, 2:ET, 3:Q, 4:GW_abs, 5:SW_abs
@@ -116,8 +118,12 @@ end
 
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
 
-n_trees       = 200;
-min_leaf_size = 10;
+n_trees       = 500;
+min_leaf_size = 5;
+
+% Tuning variables to sample to force selection of weak anthropogenic signals
+n_vars_sample_nat = 1;  % M_nat has 3 predictors (P, ET, Q)
+n_vars_sample_ant = 1;  % M_anthro has 5 predictors (P, ET, Q, GW_abs, SW_abs)
 
 fprintf('\nRunning Twin RF Attribution Models in parallel across %d basins...\n', n_basins);
 
@@ -172,7 +178,9 @@ parfor b = 1:n_basins
     rf_nat = TreeBagger(n_trees, X_nat_val, y_val, ...
         'Method', 'regression', ...
         'OOBPrediction', 'on', ...
-        'MinLeafSize', min_leaf_size);
+        'OOBPredictorImportance', 'on', ...
+        'MinLeafSize', min_leaf_size, ...
+        'NumPredictorsToSample', n_vars_sample_nat);
     
     y_oob_nat = oobPredict(rf_nat);
     res_nat   = y_val - y_oob_nat;
@@ -189,7 +197,8 @@ parfor b = 1:n_basins
         'Method', 'regression', ...
         'OOBPrediction', 'on', ...
         'OOBPredictorImportance', 'on', ...
-        'MinLeafSize', min_leaf_size);
+        'MinLeafSize', min_leaf_size, ...
+        'NumPredictorsToSample', n_vars_sample_ant);
     
     y_oob_ant = oobPredict(rf_anthro);
     res_ant   = y_val - y_oob_ant;
@@ -200,11 +209,29 @@ parfor b = 1:n_basins
     twsc_anthro_b(valid_mask) = y_oob_ant;
     TWSC_pred_anthro(:, b)    = twsc_anthro_b;
     
+    %% --- Compute Uncertainty (95% CI) using Tree StDev ---
+    % Predict on the whole valid mask to get stdev
+    [~, y_stdev_nat] = predict(rf_nat, X_nat_val);
+    [~, y_stdev_ant] = predict(rf_anthro, X_ant_val);
+    
+    % Combine uncertainties (assuming independence for simplicity)
+    y_stdev_total = sqrt(y_stdev_nat.^2 + y_stdev_ant.^2);
+    
+    twsc_ci_upper_b = nan(n_time, 1);
+    twsc_ci_lower_b = nan(n_time, 1);
+    twsc_ci_upper_b(valid_mask) = y_oob_ant + 1.96 * y_stdev_total;
+    twsc_ci_lower_b(valid_mask) = y_oob_ant - 1.96 * y_stdev_total;
+    
+    TWSC_pred_anthro_upper(:, b) = twsc_ci_upper_b;
+    TWSC_pred_anthro_lower(:, b) = twsc_ci_lower_b;
+    
     % Variance Explained Gain: Delta R^2
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
     
     % Feature Permutation Importance Scores
-    feature_importance(b, :) = rf_anthro.OOBPermutedPredictorDeltaError;
+    feat_imp_b = nan(1, 5);
+    feat_imp_b(1:5) = rf_anthro.OOBPermutedPredictorDeltaError;
+    feature_importance(b, :) = feat_imp_b;
 end
 
 fprintf('\nAttribution modeling complete.\n');
@@ -216,16 +243,29 @@ fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitna
 attr_file = fullfile(output_dir, 'attribution_results.mat');
 fprintf('Saving attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
-    'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
+    'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
+    'TWSC_pred_anthro_upper', 'TWSC_pred_anthro_lower', '-v7.3');
 fprintf('=== STEP 4 Complete: Twin Model Attribution Completed & Saved ===\n\n');
 
 %% Helper Function for Deseasonalization
 function x_deseason = deseasonalize(x, dates)
     x_deseason = nan(size(x));
     months = month(dates);
+    
+    % Define baseline period: 2004-2009 inclusive to prevent data leakage
+    baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
+    
     for m = 1:12
         idx_m = (months == m);
-        monthly_mean = mean(x(idx_m), 'omitnan');
+        idx_baseline_m = idx_m & baseline_idx;
+        
+        % Fallback if baseline data is entirely missing (rare)
+        if sum(~isnan(x(idx_baseline_m))) < 3
+            monthly_mean = mean(x(idx_m), 'omitnan');
+        else
+            monthly_mean = mean(x(idx_baseline_m), 'omitnan');
+        end
+        
         x_deseason(idx_m) = x(idx_m) - monthly_mean;
     end
 end

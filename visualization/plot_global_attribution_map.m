@@ -1,7 +1,8 @@
+
 %% plot_global_attribution_map.m
 % =========================================================================
-% PURPOSE: Create a global choropleth map coloring each basin by its 
-%          dominant driver of TWS variability (determined by maximum OOB 
+% PURPOSE: Create a global choropleth map coloring each basin by its
+%          dominant driver of TWS variability (determined by maximum OOB
 %          permutation feature importance from M_anthro).
 % =========================================================================
 
@@ -92,7 +93,7 @@ cmap = [
     0, 1, 1;         % Cyan (Q)
     1, 0.5, 0;       % Orange (GW_abs)
     1, 0, 0          % Red (SW_abs)
-];
+    ];
 colormap(cmap);
 caxis([0.5, 5.5]); % Center colors on integers 1-5
 
@@ -100,7 +101,7 @@ title('Dominant Driver of TWS Variability', 'FontSize', 16, 'FontWeight', 'bold'
 
 % Add categorical legend
 driver_labels = {'Precipitation (P)', 'Evapotranspiration (ET)', 'Runoff (Q)', ...
-                 'Groundwater Abstraction (GW)', 'Surface Water Abstraction (SW)'};
+    'Groundwater Abstraction (GW)', 'Surface Water Abstraction (SW)'};
 
 hold on;
 for i = 1:5
