@@ -8,4 +8,5 @@
 # Ignore workspace and local config files
 .vscode/
 Paper/*.docx
+~$*.docx
 *.png
