@@ -7,3 +7,5 @@
 
 # Ignore workspace and local config files
 .vscode/
+Paper/*.docx
+*.png

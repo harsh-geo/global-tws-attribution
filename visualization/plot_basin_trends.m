@@ -59,11 +59,26 @@ end
 
 % 3. Create the figure
 figure('Name', 'Global TWS Trends', 'Color', 'w', 'Position', [100 100 1000 500]);
-h = imagesc(trend_map);
+
+% Create spatial coordinates for 0.5 deg grid
+lon = linspace(-179.75, 179.75, 720);
+lat = linspace(-89.75, 89.75, 360);
+
+h = imagesc(lon, lat, trend_map);
+set(gca, 'YDir', 'normal'); % Fix inverted map
 set(gca, 'Color', [0.8 0.8 0.8]); % Gray background for non-basin areas
 h.AlphaData = ~isnan(trend_map);
 axis image;
 axis off;
+
+% Overlay coastlines
+hold on;
+try
+    load coastlines
+    plot(coastlon, coastlat, 'k-', 'LineWidth', 0.8);
+catch
+    warning('Could not load coastlines.');
+end
 
 % Custom Blue-Red Colormap (Red for decline/negative, Blue for increase/positive)
 n = 64;
@@ -84,12 +99,13 @@ cb.Label.String = 'TWS Trend (cm/year)';
 cb.FontSize = 12;
 
 % Overlay stippling for non-significant basins
-hold on;
 non_sig_map = ~sig_map & ~isnan(trend_map);
 [row, col] = find(non_sig_map);
 % Subsample for stippling so it's not completely dense
 stipple_step = 4;
-plot(col(1:stipple_step:end), row(1:stipple_step:end), 'k.', 'MarkerSize', 2, 'Color', [0.4 0.4 0.4]);
+stipple_lon = lon(col(1:stipple_step:end));
+stipple_lat = lat(row(1:stipple_step:end));
+plot(stipple_lon, stipple_lat, 'k.', 'MarkerSize', 2, 'Color', [0.4 0.4 0.4]);
 
 title('Global TWS Trends (Stippled = Not Significant at p < 0.05)', 'FontSize', 14);
 
