@@ -10,7 +10,7 @@ An end-to-end high-performance computational pipeline for identifying global Ter
 
 ## 📌 Project Overview
 
-Terrestrial Water Storage ($TWS$) is a key component of the global hydrological cycle. This repository implements a machine learning and hydrologic modeling pipeline to quantify $TWS$ decline trends and perform driver attribution across 103 major river basins worldwide.
+Terrestrial Water Storage ($TWS$) is a key component of the global hydrological cycle. This repository implements a machine learning and hydrologic modeling pipeline to quantify $TWS$ decline trends and perform driver attribution across 103 major river basins worldwide. The central objective is to understand the cause of TWS changes by mapping the spatial variations and computing the mean conditions over each basin.
 
 ### Governing Hydrologic Mass Balance
 $$\frac{dTWS}{dt} = TWSC = P - ET - Q - (GW_{abs} + SW_{abs})$$
@@ -41,76 +41,34 @@ All spatial grid variables are formatted to a $0.5^\circ \times 0.5^\circ$ globa
 
 ---
 
-## 🏗️ Directory Architecture
+## 🏗️ Work Completed Thus Far
 
-```
-data2/
-├── GEMINI.md                            # Agent core context & HPC execution directives
-├── README.md                            # Project documentation (this file)
-├── grace/                               # GRACE NetCDF datasets & dates
-│   ├── grace_corrected_monthly.nc
-│   └── grace_dates.mat
-├── data/
-│   ├── raw/                             # Raw input files & masks
-│   └── processed/                       # Mask grid & raw input files (intermediate .mat saves disabled)
-│       └── basin_map.mat                # 103 major river basin mask grid
-├── src/
-│   ├── preprocessing/
-│   │   ├── step01_unit_conversion.m    # Unit standardization & timeline alignment
-│   │   └── step02_aggregate_basins.m    # Latitude cosine-weighted spatial aggregation
-│   ├── gap_filling/
-│   │   └── step03_reconstruct_grace.m   # RF gap-filling for missing GRACE months
-│   ├── modeling/
-│   │   ├── step04_run_attribution.m    # Twin Random Forest attribution modeling
-│   │   └── step04b_run_attribution_anomalies.m # Twin RF using anomaly drivers
-│   └── validation/
-│       └── step05_validate_and_trends.m # 3-Yr block cross-validation & Mann-Kendall trends
-├── visualization/
-│   ├── plot_basin_trends.m              # Basin-level trend plotting
-│   └── plot_global_attribution_map.m    # Global attribution map generation
-└── slurm/
-    ├── submit_pipeline.sh               # DIRAC HPC batch SLURM job submitter
-    └── logs/                            # SLURM output & error logs
-```
+The pipeline successfully transforms raw hydroclimate data into publication-ready trend and attribution analysis through a highly automated 5-step workflow, along with supporting visualization scripts. Here is the detailed breakdown of the work done till now:
 
----
+### 1. Preprocessing & Data Harmonization
+- **Unit Standardization**: Flux conversions from various datasets have been standardized into liquid water equivalent depth ($\text{cm/month}$). Raw, invalid datasets anomalies were systematically removed (fill value handling such as $-999$ or very large values mapping to `NaN`).
+- **Basin-Scale Aggregation**: Extracted spatially-weighted means using a latitude cosine weighting scheme for the 103 major river basins. Memory optimizations (explicit `clear` garbage collections) ensure compatibility with memory-bound clusters like the DIRAC HPC.
 
-## 🚀 Pipeline Workflow
+### 2. Random Forest GRACE Gap-Filling
+- A machine-learning approach is implemented using ensemble Random Forest regressors to predict missing observations spanning the 2017–2018 GRACE to GRACE-FO inter-mission gap. It uses continuous baseline hydroclimate predictors ($P, ET, Q$). 
 
-### Step 1: Hydroclimate Flux Standardization & Reindexing
-`src/preprocessing/step01_unit_conversion.m`
-- Standardizes all hydroclimate flux inputs to liquid water equivalent depth ($\text{cm/month}$).
-- Sanitizes non-physical fill values ($-999$, $>10^{19}$) to standard MATLAB `NaN`s.
-- Maps GRACE observations onto the 213-month timeline (April 2002 – December 2019), placing `NaN`s at unobserved gap months.
+### 3. Twin Modeling & Attribution
+- TWS Change ($TWSC$) computed via centered finite difference over time.
+- **Twin Random Forest Models** are implemented natively to perform the attribution logic:
+  - **Natural Baseline Model ($M_{nat}$)**: Trained strictly on climate drivers ($P, ET, Q$).
+  - **Anthropogenic Model ($M_{anthro}$)**: Trained on natural climate variables plus human abstractions ($GW_{abs}$ and $SW_{abs}$).
+- Quantified attribution through the Variance Explained Gain metric ($\Delta R^2$) as well as Random Forest Out-of-Bag permutation feature importance scoring to rank dominant drivers.
 
-### Step 2: Latitude Cosine-Weighted Basin Aggregation
-`src/preprocessing/step02_aggregate_basins.m`
-- Reads `basin_map.mat` (IDs $1\dots103$).
-- Applies latitude cosine-weighting ($\cos(\text{lat})$) across the $0.5^\circ$ grid to extract spatial weighted averages for each basin:
-  $$\bar{x}_{t, b} = \frac{\sum_{i \in \text{basin } b} x_{i, t} \cdot \cos(\text{lat}_i)}{\sum_{i \in \text{basin } b} \cos(\text{lat}_i)}$$
+### 4. Rigorous Validation and Trend Extraction
+- Modeled the trends explicitly employing **3-Year Contiguous Block Cross-Validation** to avoid time-series autocorrelation leakage common to standard K-Fold CV.
+- Scored predictions using established hydrology parameters: Nash-Sutcliffe Efficiency (NSE), Kling-Gupta Efficiency (KGE), RMSE, and Pearson $R^2$.
+- Long-term TWS variation extracted mathematically using the non-parametric **Theil-Sen's Slope Estimator**.
+- Statistical significance obtained dynamically addressing serial dependence using the **Hamed & Rao Modified Mann-Kendall Test** ($p < 0.05$).
 
-### Step 3: Random Forest GRACE Gap-Filling
-`src/gap_filling/step03_reconstruct_grace.m`
-- Reconstructs missing GRACE/GRACE-FO observation months (including the 2017–2018 inter-mission gap).
-- Trains an ensemble Random Forest regressor (`TreeBagger`) per basin using hydroclimate predictors ($P, ET, Q$) during continuous baseline observation periods (2002–2017).
-
-### Step 4: Twin Attribution Modeling
-`src/modeling/step04_run_attribution.m` & `src/modeling/step04b_run_attribution_anomalies.m`
-- Calculates $TWSC$ via centered finite differences:
-  $$TWSC(t) = \frac{TWS(t+1) - TWS(t-1)}{2 \Delta t}$$
-- Configurable modeling approaches via `attribution_model` flag in `run_pipeline_local.m`:
-  - **Absolute Values**: Uses raw inputs for hydroclimate drivers.
-  - **Anomaly Values**: Subtracts the 2004-2008 baseline mean from all drivers before modeling (matching GRACE TWS convention).
-- Trains twin models:
-  - **Natural Baseline Model ($M_{nat}$)**: Predicts $TWSC$ using $P, ET, Q$ (absolute or anomaly).
-  - **Full Anthropogenic Model ($M_{anthro}$)**: Predicts $TWSC$ using $P, ET, Q, GW_{abs}, SW_{abs}$ (absolute or anomaly).
-- Computes variance explained gain ($\Delta R^2 = R^2_{anthro} - R^2_{nat}$) and Out-of-Bag Permutation Feature Importance.
-
-### Step 5: Validation & Trend Analysis
-`src/validation/step05_validate_and_trends.m`
-- Implements **3-Year Contiguous Block Cross-Validation** to prevent temporal autocorrelation leakage.
-- Evaluates model performance using Nash-Sutcliffe Efficiency (NSE), Kling-Gupta Efficiency (KGE), RMSE, and Pearson $R^2$.
-- Computes trend magnitudes using **Theil-Sen's Slope Estimator** ($\text{cm/yr}$) and assesses statistical significance ($p < 0.05$) via the **Hamed and Rao Modified Mann-Kendall Test** (autocorrelation-corrected).
+### 5. Advanced Visualization Features
+We have added fully-automated mapping functionality (`src/visualization/`):
+- **Basin Trend Plotting (`plot_basin_trends.m`)**: Synthesizes the outputs into a visual map overlaying TWS decline trends (Sen slope). Uses a blue-red colorbar reflecting increasing or declining stores and elegantly handles statistical significance by overlaying a stippling pattern (dots) on non-significant basins derived from the MK test overlay.
+- **Dominant Driver Identification Map (`plot_global_attribution_map.m`)**: Extracts OOB Feature Importance metrics from the Twin Anthropogenic model and categorizes the globe based on the primary variable controlling spatial TWS anomalies.
 
 ---
 
@@ -128,9 +86,12 @@ run('run_pipeline_local.m');
 ```cmd
 run_pipeline_local.bat
 ```
-*or via MATLAB batch mode:*
-```bash
-matlab -batch "run('run_pipeline_local.m');"
+
+### Visualization
+Once outputs are generated, run the visualization routines in MATLAB:
+```matlab
+run('visualization/plot_basin_trends.m');
+run('visualization/plot_global_attribution_map.m');
 ```
 
 ### HPC Batch Execution (DIRAC Supercomputer / SLURM)
@@ -143,8 +104,8 @@ sbatch slurm/submit_pipeline.sh
 
 ## 📊 Outputs & Artifacts
 
-To prevent high disk consumption, intermediate `.mat` files (`standardized_grids.mat`, `basin_time_series.mat`, `grace_reconstructed.mat`, `attribution_results.mat`) are processed in memory and NOT saved to disk.
-
-Only the single **final master result** file and CSV report are saved:
+Intermediate grids are heavily memory-optimized and bypassed on disk. The output includes:
 - `outputs/tables/validation_and_trends.mat`: Final master results containing continuous reconstructed TWS series, twin model metrics ($\Delta R^2$, NSE, KGE, RMSE), feature importance, block CV predictions, and modified Mann-Kendall trend statistics.
 - `outputs/tables/basin_summary_table.csv`: Exported publication-grade CSV summary table.
+- `outputs/figures/tws_basin_trends.png`: Visual spatial projection mapping of MK significant trends.
+- `outputs/figures/tws_dominant_drivers.png`: Dominant physical/human drivers mapping.

@@ -290,7 +290,7 @@ function nse = compute_nse(obs, sim)
 end
 
 function kge = compute_kge(obs, sim)
-    % Kling-Gupta Efficiency (KGE)
+    % Modified Kling-Gupta Efficiency (KGE) for zero-mean variables
     valid = ~isnan(obs) & ~isnan(sim);
     if sum(valid) < 5
         kge = NaN;
@@ -306,13 +306,14 @@ function kge = compute_kge(obs, sim)
         return;
     end
     alpha = std_sim / std_obs;
+    
+    % Use normalized bias for zero-mean variables (TWSC)
     mean_obs = mean(obs, 'omitnan');
-    if mean_obs == 0 || isnan(mean_obs)
-        kge = NaN;
-        return;
-    end
-    beta  = mean(sim, 'omitnan') / mean_obs;
-    kge   = 1 - sqrt((r - 1)^2 + (alpha - 1)^2 + (beta - 1)^2);
+    mean_sim = mean(sim, 'omitnan');
+    beta = (mean_sim - mean_obs) / std_obs;
+    
+    % In this modified version, ideal beta is 0. 
+    kge   = 1 - sqrt((r - 1)^2 + (alpha - 1)^2 + beta^2);
 end
 
 function slope = theil_sen_slope(x, y)

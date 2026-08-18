@@ -114,33 +114,35 @@ if isempty(gcp('nocreate'))
     parpool('local', num_cores);
 end
 
+target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
+
 n_trees       = 200;
-min_leaf_size = 5;
+min_leaf_size = 10;
 
 fprintf('\nRunning Twin RF Attribution Models in parallel across %d basins...\n', n_basins);
 
 %% Parfor Parallel Attribution Execution
 parfor b = 1:n_basins
-    twsc_target = TWSC_obs(:, b);
-    p_b  = P_basin(:, b);
-    et_b = ET_basin(:, b);
+    twsc_target = deseasonalize(TWSC_obs(:, b), target_dates);
+    p_b  = deseasonalize(P_basin(:, b), target_dates);
+    et_b = deseasonalize(ET_basin(:, b), target_dates);
     
     % Runoff handling
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
-        q_b = Q_basin(:, b);
+        q_b = deseasonalize(Q_basin(:, b), target_dates);
     else
         q_b = zeros(n_time, 1);
     end
     
     % Abstraction handling
     if ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
-        gw_b = GW_basin(:, b);
+        gw_b = deseasonalize(GW_basin(:, b), target_dates);
     else
         gw_b = zeros(n_time, 1);
     end
     
     if ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
-        sw_b = SW_basin(:, b);
+        sw_b = deseasonalize(SW_basin(:, b), target_dates);
     else
         sw_b = zeros(n_time, 1);
     end
@@ -216,3 +218,14 @@ fprintf('Saving attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
     'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
 fprintf('=== STEP 4 Complete: Twin Model Attribution Completed & Saved ===\n\n');
+
+%% Helper Function for Deseasonalization
+function x_deseason = deseasonalize(x, dates)
+    x_deseason = nan(size(x));
+    months = month(dates);
+    for m = 1:12
+        idx_m = (months == m);
+        monthly_mean = mean(x(idx_m), 'omitnan');
+        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+    end
+end

@@ -128,17 +128,18 @@ fprintf('\nRunning Twin RF Attribution Models (Anomalies 2004-2008 baseline) in 
 %% Parfor Parallel Attribution Execution
 parfor b = 1:n_basins
     twsc_target = TWSC_obs(:, b);
+    twsc_target = deseasonalize(twsc_target, target_dates, baseline_idx);
     
     p_b  = P_basin(:, b);
-    p_b  = p_b - mean(p_b(baseline_idx), 'omitnan'); % Anomaly (2004-2008 baseline)
+    p_b  = deseasonalize(p_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     
     et_b = ET_basin(:, b);
-    et_b = et_b - mean(et_b(baseline_idx), 'omitnan'); % Anomaly (2004-2008 baseline)
+    et_b = deseasonalize(et_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     
     % Runoff handling
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
         q_b = Q_basin(:, b);
-        q_b = q_b - mean(q_b(baseline_idx), 'omitnan'); % Anomaly (2004-2008 baseline)
+        q_b = deseasonalize(q_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     else
         q_b = zeros(n_time, 1);
     end
@@ -146,14 +147,14 @@ parfor b = 1:n_basins
     % Abstraction handling
     if ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
         gw_b = GW_basin(:, b);
-        gw_b = gw_b - mean(gw_b(baseline_idx), 'omitnan'); % Anomaly (2004-2008 baseline)
+        gw_b = deseasonalize(gw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     else
         gw_b = zeros(n_time, 1);
     end
     
     if ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
         sw_b = SW_basin(:, b);
-        sw_b = sw_b - mean(sw_b(baseline_idx), 'omitnan'); % Anomaly (2004-2008 baseline)
+        sw_b = deseasonalize(sw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     else
         sw_b = zeros(n_time, 1);
     end
@@ -229,3 +230,19 @@ fprintf('Saving attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
     'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
 fprintf('=== STEP 4b Complete: Twin Model Attribution (Anomalies) Completed & Saved ===\n\n');
+
+%% Helper Function for Deseasonalization with Baseline
+function x_deseason = deseasonalize(x, dates, baseline_idx)
+    x_deseason = nan(size(x));
+    months = month(dates);
+    for m = 1:12
+        idx_m = (months == m);
+        idx_base = idx_m & baseline_idx;
+        if any(idx_base) && ~all(isnan(x(idx_base)))
+            monthly_mean = mean(x(idx_base), 'omitnan');
+        else
+            monthly_mean = mean(x(idx_m), 'omitnan'); % fallback
+        end
+        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+    end
+end

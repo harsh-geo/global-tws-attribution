@@ -126,24 +126,27 @@ parfor b = 1:n_basins
         twsc_p(1)       = (tws_p(2) - tws_p(1)) / dt;
         twsc_p(end)     = (tws_p(end) - tws_p(end-1)) / dt;
         
-        % Anomalies (2004-2008)
-        p_p  = p_p - mean(p_p(baseline_idx), 'omitnan');
-        et_p = et_p - mean(et_p(baseline_idx), 'omitnan');
+        % Deseasonalise TWSC
+        twsc_p = deseasonalize(twsc_p, target_dates, baseline_idx);
+        
+        % Deseasonalised Anomalies (2004-2008)
+        p_p  = deseasonalize(p_p, target_dates, baseline_idx);
+        et_p = deseasonalize(et_p, target_dates, baseline_idx);
         
         if ~isempty(q_p) && ~all(isnan(q_p))
-            q_p = q_p - mean(q_p(baseline_idx), 'omitnan');
+            q_p = deseasonalize(q_p, target_dates, baseline_idx);
         else
             q_p = zeros(n_time, 1);
         end
         
         if ~isempty(gw_p) && ~all(isnan(gw_p))
-            gw_p = gw_p - mean(gw_p(baseline_idx), 'omitnan');
+            gw_p = deseasonalize(gw_p, target_dates, baseline_idx);
         else
             gw_p = zeros(n_time, 1);
         end
         
         if ~isempty(sw_p) && ~all(isnan(sw_p))
-            sw_p = sw_p - mean(sw_p(baseline_idx), 'omitnan');
+            sw_p = deseasonalize(sw_p, target_dates, baseline_idx);
         else
             sw_p = zeros(n_time, 1);
         end
@@ -223,5 +226,21 @@ function update_waitbar(h_wb, n_total)
     
     if count == n_total
         count = []; % Reset for next run
+    end
+end
+
+%% Helper Function for Deseasonalization with Baseline
+function x_deseason = deseasonalize(x, dates, baseline_idx)
+    x_deseason = nan(size(x));
+    months = month(dates);
+    for m = 1:12
+        idx_m = (months == m);
+        idx_base = idx_m & baseline_idx;
+        if any(idx_base) && ~all(isnan(x(idx_base)))
+            monthly_mean = mean(x(idx_base), 'omitnan');
+        else
+            monthly_mean = mean(x(idx_m), 'omitnan'); % fallback
+        end
+        x_deseason(idx_m) = x(idx_m) - monthly_mean;
     end
 end
