@@ -64,6 +64,17 @@ if ~exist('P_basin', 'var') || isempty(P_basin) || ...
         GW_basin    = ts_data.GW_basin;
         SW_basin    = ts_data.SW_basin;
         grace_dates = ts_data.grace_dates;
+        
+        if isfield(ts_data, 'T_basin')
+            T_basin = ts_data.T_basin;
+        else
+            T_basin = zeros(size(P_basin));
+        end
+        if isfield(ts_data, 'ONI_index')
+            ONI_index = ts_data.ONI_index;
+        else
+            ONI_index = zeros(size(P_basin, 1), 1);
+        end
     else
         fprintf('Basin time-series not in memory. Running step02_aggregate_basins.m...\n');
         run(fullfile(project_root, 'src', 'preprocessing', 'step02_aggregate_basins.m'));
@@ -106,9 +117,12 @@ TWSC_pred_anthro = nan(n_time, n_basins);
 TWSC_pred_anthro_upper = nan(n_time, n_basins);
 TWSC_pred_anthro_lower = nan(n_time, n_basins);
 
-% Feature Importance matrix: [103 basins x 5 features]
-% Features: 1:P, 2:ET, 3:Q, 4:GW_abs, 5:SW_abs
-feature_importance = nan(n_basins, 5);
+% Feature Importance matrix: [103 basins x 7 features]
+% Features: 1:P, 2:ET, 3:Q, 4:T, 5:ONI, 6:GW_abs, 7:SW_abs
+feature_importance = nan(n_basins, 7);
+
+% SHAP values matrix: [N_time x N_basins x 7 features]
+shap_values = nan(n_time, n_basins, 7);
 
 %% Parallel Processing Setup
 num_cores = feature('numcores');
@@ -122,8 +136,8 @@ n_trees       = 500;
 min_leaf_size = 5;
 
 % Tuning variables to sample to force selection of weak anthropogenic signals
-n_vars_sample_nat = 1;  % M_nat has 3 predictors (P, ET, Q)
-n_vars_sample_ant = 1;  % M_anthro has 5 predictors (P, ET, Q, GW_abs, SW_abs)
+n_vars_sample_nat = 1;  % M_nat has 5 predictors (P, ET, Q, T, ONI)
+n_vars_sample_ant = 1;  % M_anthro has 7 predictors (P, ET, Q, T, ONI, GW_abs, SW_abs)
 
 fprintf('\nRunning Twin RF Attribution Models in parallel across %d basins...\n', n_basins);
 
@@ -132,6 +146,9 @@ parfor b = 1:n_basins
     twsc_target = deseasonalize(TWSC_obs(:, b), target_dates);
     p_b  = deseasonalize(P_basin(:, b), target_dates);
     et_b = deseasonalize(ET_basin(:, b), target_dates);
+    
+    t_b = deseasonalize(T_basin(:, b), target_dates);
+    oni_b = ONI_index; % ONI is already a global anomaly index, don't deseasonalize
     
     % Runoff handling
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
@@ -158,11 +175,11 @@ parfor b = 1:n_basins
     twsc_anthro_b = nan(n_time, 1);
     
     % Feature matrices
-    % Model 1 (Natural): P, ET, Q
-    X_nat = [p_b, et_b, q_b];
+    % Model 1 (Natural): P, ET, Q, T, ONI
+    X_nat = [p_b, et_b, q_b, t_b, oni_b];
     
-    % Model 2 (Anthropogenic): P, ET, Q, GW_abs, SW_abs
-    X_anthro = [p_b, et_b, q_b, gw_b, sw_b];
+    % Model 2 (Anthropogenic): P, ET, Q, T, ONI, GW_abs, SW_abs
+    X_anthro = [p_b, et_b, q_b, t_b, oni_b, gw_b, sw_b];
     
     % Valid sample mask
     valid_mask = ~isnan(twsc_target) & ~any(isnan(X_anthro), 2);
@@ -229,9 +246,22 @@ parfor b = 1:n_basins
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
     
     % Feature Permutation Importance Scores
-    feat_imp_b = nan(1, 5);
-    feat_imp_b(1:5) = rf_anthro.OOBPermutedPredictorDeltaError;
+    feat_imp_b = nan(1, 7);
+    feat_imp_b(1:7) = rf_anthro.OOBPermutedPredictorDeltaError;
     feature_importance(b, :) = feat_imp_b;
+    
+    % SHAP Computation (Event-level attribution)
+    try
+        explainer = shapley(rf_anthro, X_ant_val);
+        shap_vals_table = explainer.ShapleyValues;
+        shap_matrix = shap_vals_table{:, :};
+        
+        shap_b = nan(n_time, 7);
+        shap_b(valid_mask, :) = shap_matrix;
+        shap_values(:, b, :) = shap_b;
+    catch
+        % shapley might fail on older MATLAB versions or specific edge cases
+    end
 end
 
 fprintf('\nAttribution modeling complete.\n');
@@ -243,7 +273,7 @@ fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitna
 attr_file = fullfile(output_dir, 'attribution_results.mat');
 fprintf('Saving attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
-    'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
+    'feature_importance', 'shap_values', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
     'TWSC_pred_anthro_upper', 'TWSC_pred_anthro_lower', '-v7.3');
 fprintf('=== STEP 4 Complete: Twin Model Attribution Completed & Saved ===\n\n');
 
