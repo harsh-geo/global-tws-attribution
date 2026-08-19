@@ -124,10 +124,19 @@ feature_importance = nan(n_basins, 7);
 % SHAP values matrix: [N_time x N_basins x 7 features]
 shap_values = nan(n_time, n_basins, 7);
 
-%% Parallel Processing Setup
-num_cores = feature('numcores');
-if isempty(gcp('nocreate'))
-    parpool('local', num_cores);
+%% Parallel Processing Setup (Graceful Fallback)
+has_parallel = license('test', 'Distrib_Computing_Toolbox');
+if has_parallel
+    try
+        if isempty(gcp('nocreate'))
+            num_cores = feature('numcores');
+            parpool('local', num_cores);
+        end
+    catch ME
+        fprintf('Note: Running serially (Parallel pool initialization failed: %s)\n', ME.message);
+    end
+else
+    fprintf('Note: Parallel Computing Toolbox not found. Running sequentially.\n');
 end
 
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
