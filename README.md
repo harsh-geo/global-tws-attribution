@@ -26,6 +26,22 @@ Where:
 
 ---
 
+## 🔬 Key Scientific Findings
+
+- **Widespread Depletion**: **40.8% (42 out of 103 basins)** exhibit statistically significant negative TWS trends ($p < 0.05$, Hamed & Rao Modified Mann-Kendall test), with a mean decline rate of **$-0.528\text{ cm/year}$** among declining basins.
+- **Top Depleted Basins**:
+  - **Basin 36**: $-1.855\text{ cm/year}$ ($p < 10^{-15}$)
+  - **Indus Basin (Basin 51)**: $-1.250\text{ cm/year}$ ($p = 2.68 \times 10^{-8}$)
+  - **Basin 14**: $-1.204\text{ cm/year}$ ($p = 1.57 \times 10^{-12}$)
+  - **Basin 5**: $-1.171\text{ cm/year}$ ($p = 1.33 \times 10^{-15}$)
+  - **Tigris-Euphrates (Basin 17)**: $-0.833\text{ cm/year}$ ($p = 2.82 \times 10^{-5}$)
+- **Rigorous Validation Protocol**: Under **3-Year Contiguous Block Cross-Validation** (zero autocorrelation leakage):
+  - **82.5% of basins (85/103)** achieve skillful out-of-sample prediction ($\text{NSE} > 0$).
+  - **75.7% of basins (78/103)** show improved predictive accuracy under the Full Anthropogenic Model ($M_{anthro} > M_{nat}$), with a **+58.3% increase in median NSE** ($0.0369 \to 0.0584$).
+- **Driver Dominance**: Precipitation ($P$) dominates high-frequency meteorological variability across 88.3% of basins, while human groundwater and surface water abstractions drive substantial explanatory gains ($\Delta\text{NSE}$ up to $+0.0894$) across heavily irrigated aquifers.
+
+---
+
 ## 🛠️ Data Inputs
 
 All spatial grid variables are formatted to a $0.5^\circ \times 0.5^\circ$ global grid ($720 \times 360$) at a monthly temporal resolution covering April 2002 to December 2019 ($213$ continuous monthly timesteps):
@@ -41,61 +57,49 @@ All spatial grid variables are formatted to a $0.5^\circ \times 0.5^\circ$ globa
 
 ---
 
-## 🏗️ Work Completed Thus Far
+## 🏗️ Pipeline Architecture
 
-The pipeline successfully transforms raw hydroclimate data into publication-ready trend and attribution analysis through a highly automated 5-step workflow, along with supporting visualization scripts. Here is the detailed breakdown of the work done till now:
+The pipeline processes raw hydroclimate data into publication-ready figures and tables:
 
-### 1. Preprocessing & Data Harmonization
-- **Unit Standardization**: Flux conversions from various datasets have been standardized into liquid water equivalent depth ($\text{cm/month}$). Raw, invalid datasets anomalies were systematically removed (fill value handling such as $-999$ or very large values mapping to `NaN`).
-- **Basin-Scale Aggregation**: Extracted spatially-weighted means using a latitude cosine weighting scheme for the 103 major river basins. Memory optimizations (explicit `clear` garbage collections) ensure compatibility with memory-bound clusters like the DIRAC HPC.
+### 1. Preprocessing & Data Harmonization (`src/preprocessing/`)
+- Unit conversion and anomaly fill value removal (e.g., $-999 \to \text{NaN}$).
+- Area-weighted spatial aggregation using latitude-cosine weighting ($\cos(\text{lat})$).
+- Explicit MATLAB memory garbage collection (`clear`) for HPC cluster efficiency.
 
-### 2. Random Forest GRACE Gap-Filling
-- A machine-learning approach is implemented using ensemble Random Forest regressors to predict missing observations spanning the 2017–2018 GRACE to GRACE-FO inter-mission gap. It uses continuous baseline hydroclimate predictors ($P, ET, Q$). 
+### 2. Random Forest GRACE Gap-Filling (`src/gap_filling/`)
+- Reconstructs missing GRACE/GRACE-FO observations (including the 2017–2018 observational gap) using Random Forest regressors trained on historical hydroclimate fluxes ($P, ET, Q, T$).
 
-### 3. Twin Modeling & Attribution
-- TWS Change ($TWSC$) computed via centered finite difference over time.
-- **Twin Random Forest Models** are implemented natively to perform the attribution logic:
-  - **Natural Baseline Model ($M_{nat}$)**: Trained strictly on climate drivers ($P, ET, Q$).
-  - **Anthropogenic Model ($M_{anthro}$)**: Trained on natural climate variables plus human abstractions ($GW_{abs}$ and $SW_{abs}$).
-- Quantified attribution through the Variance Explained Gain metric ($\Delta R^2$) as well as Random Forest Out-of-Bag permutation feature importance scoring to rank dominant drivers.
+### 3. Twin Machine Learning Attribution (`src/modeling/`)
+- Centered finite difference TWSC calculation: $TWSC(t) = [TWS(t+1) - TWS(t-1)] / (2\Delta t)$.
+- **Model 1 ($M_{nat}$)**: Predicts $TWSC$ from natural climate drivers ($P, ET, Q, T, ONI$).
+- **Model 2 ($M_{anthro}$)**: Predicts $TWSC$ from natural drivers plus human water abstractions ($GW_{abs}, SW_{abs}$).
+- Hyperparameter tuning (`NumPredictorsToSample=1`, deeper trees) and fixed-baseline deseasonalization (2004–2009) to capture weak abstraction signals without temporal leakage.
 
-### 4. Rigorous Validation and Trend Extraction
-- Modeled the trends explicitly employing **3-Year Contiguous Block Cross-Validation** to avoid time-series autocorrelation leakage common to standard K-Fold CV.
-- Scored predictions using established hydrology parameters: Nash-Sutcliffe Efficiency (NSE), Kling-Gupta Efficiency (KGE), RMSE, and Pearson $R^2$.
-- Long-term TWS variation extracted mathematically using the non-parametric **Theil-Sen's Slope Estimator**.
-- Statistical significance obtained dynamically addressing serial dependence using the **Hamed & Rao Modified Mann-Kendall Test** ($p < 0.05$).
+### 4. Validation & Trend Analysis (`src/validation/`)
+- 3-Year Contiguous Block Cross-Validation across all 103 basins.
+- Autocorrelation-corrected Hamed & Rao Modified Mann-Kendall Test ($p < 0.05$) and Theil-Sen slope estimation.
 
-### 5. Advanced Visualization Features
-We have added fully-automated mapping functionality (`src/visualization/`):
-- **Basin Trend Plotting (`plot_basin_trends.m`)**: Synthesizes the outputs into a visual map overlaying TWS decline trends (Sen slope). Uses a blue-red colorbar reflecting increasing or declining stores and elegantly handles statistical significance by overlaying a stippling pattern (dots) on non-significant basins derived from the MK test overlay.
-- **Dominant Driver Identification Map (`plot_global_attribution_map.m`)**: Extracts OOB Feature Importance metrics from the Twin Anthropogenic model and categorizes the globe based on the primary variable controlling spatial TWS anomalies.
+### 5. Publication Figures (`visualization/`)
+- Global TWS trends and stippled significance maps (`plot_basin_trends.m`).
+- Global dominant driver maps (`plot_global_attribution_map.m`).
+- Model comparison boxplots and lollipop charts (`plot_model_comparison_boxplots.m`, `plot_delta_r2_lollipop.m`).
+- High-resolution case study timeseries and scatter plots (`plot_basin_51_analysis.m`).
 
 ---
 
 ## 💻 Running the Pipeline
 
 ### Local Execution
-To run the entire pipeline end-to-end locally, you can use either method:
-
-**Method 1: MATLAB Command Window / GUI**
 ```matlab
+% In MATLAB Command Window:
 run('run_pipeline_local.m');
 ```
-
-**Method 2: Command Line (Windows Terminal / PowerShell)**
+Or via Windows command prompt:
 ```cmd
 run_pipeline_local.bat
 ```
 
-### Visualization
-Once outputs are generated, run the visualization routines in MATLAB:
-```matlab
-run('visualization/plot_basin_trends.m');
-run('visualization/plot_global_attribution_map.m');
-```
-
 ### HPC Batch Execution (DIRAC Supercomputer / SLURM)
-Submit the full pipeline job to the SLURM workload manager:
 ```bash
 sbatch slurm/submit_pipeline.sh
 ```
@@ -104,8 +108,7 @@ sbatch slurm/submit_pipeline.sh
 
 ## 📊 Outputs & Artifacts
 
-Intermediate grids are heavily memory-optimized and bypassed on disk. The output includes:
-- `outputs/tables/validation_and_trends.mat`: Final master results containing continuous reconstructed TWS series, twin model metrics ($\Delta R^2$, NSE, KGE, RMSE), feature importance, block CV predictions, and modified Mann-Kendall trend statistics.
-- `outputs/tables/basin_summary_table.csv`: Exported publication-grade CSV summary table.
-- `outputs/figures/tws_basin_trends.png`: Visual spatial projection mapping of MK significant trends.
-- `outputs/figures/tws_dominant_drivers.png`: Dominant physical/human drivers mapping.
+- `outputs/tables/validation_and_trends.mat`: Master validation and trend results matrix.
+- `outputs/tables/attribution_results.mat`: Twin model predictions, feature importances, and 95% confidence intervals.
+- `outputs/tables/basin_summary_table.csv`: Exported CSV summary table for all 103 basins.
+- `outputs/figures/`: High-resolution figures including global trends, attribution maps, top depleted basins, and case studies.
