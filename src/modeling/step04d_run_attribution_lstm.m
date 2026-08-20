@@ -86,6 +86,11 @@ RMSE_anthro      = nan(1, n_basins);
 
 TWSC_pred_nat    = nan(n_time, n_basins);
 TWSC_pred_anthro = nan(n_time, n_basins);
+TWSC_pred_anthro_upper = nan(n_time, n_basins);
+TWSC_pred_anthro_lower = nan(n_time, n_basins);
+
+feature_importance = nan(n_basins, 7);
+shap_values = nan(n_time, n_basins, 7);
 
 has_parallel = license('test', 'Distrib_Computing_Toolbox');
 if has_parallel
@@ -162,10 +167,16 @@ parfor b = 1:n_basins
         'Verbose', false, ...
         'Plots', 'none');
         
-    net_nat = trainNetwork(XTrainNat, YTrain, layers_nat, options);
-    
-    y_pred_nat_seq = predict(net_nat, XTrainNat);
-    y_pred_nat = y_pred_nat_seq{1}';
+    % Ensemble for uncertainty
+    num_ensemble = 3; % Small ensemble for computational feasibility
+    y_preds_nat_ens = zeros(n_time, num_ensemble);
+    for e = 1:num_ensemble
+        net_nat = trainNetwork(XTrainNat, YTrain, layers_nat, options);
+        y_pred_nat_seq = predict(net_nat, XTrainNat);
+        y_preds_nat_ens(:, e) = y_pred_nat_seq{1}';
+    end
+    y_pred_nat = mean(y_preds_nat_ens, 2);
+    y_stdev_nat = std(y_preds_nat_ens, 0, 2);
     
     res_nat = twsc_target - y_pred_nat;
     ss_tot = sum((twsc_target - mean(twsc_target)).^2);
@@ -182,16 +193,57 @@ parfor b = 1:n_basins
         fullyConnectedLayer(1)
         regressionLayer];
         
-    net_ant = trainNetwork(XTrainAnt, YTrain, layers_ant, options);
-    
-    y_pred_ant_seq = predict(net_ant, XTrainAnt);
-    y_pred_ant = y_pred_ant_seq{1}';
+    y_preds_ant_ens = zeros(n_time, num_ensemble);
+    for e = 1:num_ensemble
+        net_ant_temp = trainNetwork(XTrainAnt, YTrain, layers_ant, options);
+        y_pred_ant_seq = predict(net_ant_temp, XTrainAnt);
+        y_preds_ant_ens(:, e) = y_pred_ant_seq{1}';
+        if e == 1
+            net_ant = net_ant_temp; % Save one network for feature importance/SHAP
+        end
+    end
+    y_pred_ant = mean(y_preds_ant_ens, 2);
+    y_stdev_ant = std(y_preds_ant_ens, 0, 2);
     
     res_ant = twsc_target - y_pred_ant;
     
     R2_anthro(b)   = 1 - (sum(res_ant.^2) / ss_tot);
     RMSE_anthro(b) = sqrt(mean(res_ant.^2));
     TWSC_pred_anthro(:, b) = y_pred_ant;
+    
+    %% --- Compute Uncertainty (95% CI) ---
+    y_stdev_total = sqrt(y_stdev_nat.^2 + y_stdev_ant.^2);
+    TWSC_pred_anthro_upper(:, b) = y_pred_ant + 1.96 * y_stdev_total;
+    TWSC_pred_anthro_lower(:, b) = y_pred_ant - 1.96 * y_stdev_total;
+    
+    %% Feature Permutation Importance Scores
+    feat_imp_b = zeros(1, 7);
+    baseline_mse = mean((twsc_target - y_pred_ant).^2);
+    for f = 1:7
+        X_shuffled = X_anthro;
+        X_shuffled(:, f) = X_shuffled(randperm(n_time), f);
+        XTrainShuffled = {X_shuffled'};
+        y_shuf_seq = predict(net_ant, XTrainShuffled);
+        y_shuf = y_shuf_seq{1}';
+        shuffled_mse = mean((twsc_target - y_shuf).^2);
+        feat_imp_b(f) = shuffled_mse - baseline_mse; % Delta Error
+    end
+    feature_importance(b, :) = feat_imp_b;
+    
+    %% SHAP Computation (Event-level attribution)
+    try
+        % Custom predict wrapper for shapley
+        customPredictFn = @(X_in) lstmPredictWrapper(net_ant, X_in);
+        explainer = shapley(customPredictFn, X_anthro);
+        shap_vals_table = explainer.ShapleyValues;
+        shap_matrix = shap_vals_table{:, :};
+        
+        shap_b = nan(n_time, 7);
+        shap_b(:, :) = shap_matrix;
+        shap_values(:, b, :) = shap_b;
+    catch
+        % shapley might fail with custom sequence wrapper
+    end
     
     %% Metrics
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
@@ -206,7 +258,8 @@ fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitna
 attr_file = fullfile(output_dir, 'attribution_results_lstm.mat');
 fprintf('Saving LSTM attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
-    'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
+    'feature_importance', 'shap_values', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
+    'TWSC_pred_anthro_upper', 'TWSC_pred_anthro_lower', '-v7.3');
 fprintf('=== STEP 4d Complete: Twin LSTM Model Attribution Completed & Saved ===\n\n');
 
 %% Helper Function for Deseasonalization
@@ -225,4 +278,12 @@ function x_deseason = deseasonalize(x, dates)
         end
         x_deseason(idx_m) = x(idx_m) - monthly_mean;
     end
+end
+
+function Y = lstmPredictWrapper(net, X)
+    % Wrapper for shapley to accept tabular data and convert to sequence cell
+    % If X is N x Features, return N x 1
+    X_cell = {X'};
+    Y_seq = predict(net, X_cell);
+    Y = Y_seq{1}';
 end

@@ -11,13 +11,40 @@
 - **Significance**: Highlights where immediate water policy interventions are required.
 
 ## 2. Introduction
-- **The Global Water Crisis**: Importance of freshwater availability and the role of TWS (surface water, soil moisture, groundwater, snow/ice).
-- **Satellite Gravimetry**: Role of GRACE and GRACE-FO in identifying massive regional water depletions (e.g., California, Middle East, North India).
-- **The Attribution Gap**: The difficulty in separating natural decadal variability (ENSO, PDO) from anthropogenic groundwater pumping.
-- **Objectives of this Study**: 
-  1. Gap-fill and reconstruct continuous TWS globally.
-  2. Map spatial TWS decline trends robustly.
-  3. Attribute drivers using a twin machine learning methodology.
+
+### 2.1. Overview: The Global Freshwater Crisis
+- **The role of TWS**: Freshwater sustains 8 billion people, irrigates cropland producing >40% of global food, and maintains ecosystems. Terrestrial Water Storage (TWS) — the vertically integrated sum of surface water, soil moisture, groundwater, and snow/ice — is the ultimate finite reservoir upon which all these demands draw.
+- **The crisis**: Over the past two decades, TWS has been declining at alarming rates in many of the world's most productive and densely populated river basins, threatening water security, food production, and ecosystem sustainability on a planetary scale (Rodell et al., 2018; Scanlon et al., 2018; Famiglietti, 2014).
+- **The attribution problem**: Observed TWS declines may arise from natural hydroclimate variability (droughts, warming-enhanced ET) or anthropogenic water abstractions (groundwater pumping, surface water diversion). These drivers operate simultaneously and interact nonlinearly, making their separation — the *attribution problem* — one of the most challenging questions in contemporary hydrology.
+
+### 2.2. Present Work in the Field (Literature Review)
+- **Stream 1 — Satellite Gravimetry**: GRACE (2002–2017) and GRACE-FO (2018–present) have revolutionised monitoring of large-scale TWS changes from space (Tapley et al., 2004). Rodell et al. (2018) documented global freshwater declines; Scanlon et al. (2018) showed global models underestimate observed trends.
+- **Stream 2 — Regional Case Studies**: Individual basin studies have documented severe groundwater depletion:
+  - Indo-Gangetic Plain: Tiwari et al. (2009), Rodell et al. (2009) — intensive rice-wheat irrigation.
+  - California Central Valley: Famiglietti et al. (2011) — rapid aquifer drawdown.
+  - Tigris-Euphrates: Voss et al. (2013), Joodaki et al. (2014) — dam construction + unregulated pumping.
+  - North China Plain: Feng et al. (2013) — industrial + agricultural abstractions.
+- **Stream 3 — Model-Based & Statistical Attribution**:
+  - Physics-based models: Döll et al. (2014) — compared model runs with/without human water use against GRACE.
+  - Data assimilation: Zaitchik et al. (2008) — assimilated GRACE into a land surface model.
+  - Statistical decomposition: Humphrey et al. (2017) — reconstructed climate-driven TWS variability to separate residual anthropogenic signals.
+
+### 2.3. Research Gaps in Existing Approaches
+- **G1 — Single-model structural uncertainty**: Most attribution studies depend on one hydrological model (VIC, PCR-GLOBWB, WGHM), whose structural assumptions (infiltration parameterisation, aquifer geometry) propagate unconstrained biases. No independent data-driven verification is provided.
+- **G2 — No systematic global-scale driver separation**: Regional case studies cover individual basins; no study performs basin-by-basin climate-vs.-human attribution across all major global basins simultaneously, preventing cross-regime comparison.
+- **G3 — Temporal autocorrelation ignored in validation**: ML-based hydrological studies commonly use random K-fold CV, which leaks temporally correlated information (adjacent drought months in train+test), inflating skill metrics.
+- **G4 — GRACE observational gap unaddressed**: The ~11-month gap (Jul 2017–May 2018) between GRACE and GRACE-FO is often excluded or linearly interpolated, truncating trend analysis during a critical drought period.
+- **G5 — Weak anthropogenic signals masked by climate variance**: Standard ML implementations split on high-variance climate variables ($P$, $ET$), systematically burying the subtle groundwater abstraction signals ($GW_{abs}$, $SW_{abs}$) that vary by fractions of a cm/month.
+
+### 2.4. Objectives & Contributions of This Study
+Our work directly addresses Gaps G1–G5 through three methodological pillars:
+1. **Gap-fill and reconstruct continuous TWS globally (→ G4)**: RF-based covariate-driven reconstruction of the GRACE–GRACE-FO gap, producing a continuous 213-month record across 103 basins.
+2. **Map spatial TWS decline trends robustly (→ G3)**: Theil-Sen slope + Hamed & Rao autocorrelation-corrected Modified Mann-Kendall significance testing.
+3. **Attribute drivers using twin ML methodology (→ G1, G2, G5)**:
+   - Twin RF framework ($M_{nat}$ vs. $M_{anthro}$) — data-driven, no dependence on a single hydrological model's structure (G1).
+   - Systematic application across all 103 largest global basins (G2).
+   - Forced feature-sampling (`NumPredictorsToSample = 1`) to amplify weak anthropogenic signals (G5).
+   - 3-Year Contiguous Block CV + fixed-baseline deseasonalisation to prevent all temporal leakage (G3).
 
 ## 3. Data and Methods
 ### 3.1. Datasets

@@ -10,7 +10,29 @@ An end-to-end high-performance computational pipeline for identifying global Ter
 
 ## 📌 Project Overview
 
-Terrestrial Water Storage ($TWS$) is a key component of the global hydrological cycle. This repository implements a machine learning and hydrologic modeling pipeline to quantify $TWS$ decline trends and perform driver attribution across 103 major river basins worldwide. The central objective is to understand the cause of TWS changes by mapping the spatial variations and computing the mean conditions over each basin.
+### Motivation: Why This Pipeline Exists
+
+Terrestrial Water Storage ($TWS$) — the vertically integrated sum of surface water, soil moisture, groundwater, and snow/ice — is the ultimate finite freshwater reservoir upon which human civilisation depends. It sustains 8 billion people, irrigates cropland producing over 40% of the world's food, and buffers ecosystems against hydroclimatic extremes. Over the past two decades, satellite gravimetry (GRACE/GRACE-FO) has revealed alarming $TWS$ declines in many of the world's most critical river basins (Rodell et al., 2018; Scanlon et al., 2018). But *detecting* decline is only half the problem — the harder and more policy-relevant question is **attribution**: *why* is a given basin losing water? Is it drought, rising temperatures, or unsustainable human pumping? And the answer directly determines whether the correct intervention is climate adaptation or groundwater regulation.
+
+### What Existing Approaches Miss
+
+Previous attribution studies suffer from five key limitations that this pipeline is designed to overcome:
+
+| Gap | Description |
+|-----|-------------|
+| **G1** | **Single-model structural uncertainty** — Most studies rely on one hydrological model (VIC, PCR-GLOBWB), whose structural assumptions propagate unconstrained biases into the attribution |
+| **G2** | **No global-scale driver separation** — Prior work covers individual basins; no study systematically attributes drivers across all major global basins simultaneously |
+| **G3** | **Temporal autocorrelation leakage** — ML studies commonly use random K-fold CV, which inflates skill metrics by allowing temporally adjacent observations in both train and test sets |
+| **G4** | **GRACE gap unaddressed** — The ~11-month gap (Jul 2017–May 2018) is often excluded or linearly interpolated, truncating critical drought-period trend analysis |
+| **G5** | **Weak anthropogenic signals masked** — Standard ML algorithms split on high-variance climate variables ($P$, $ET$), burying the subtle but physically meaningful groundwater abstraction signals |
+
+### What This Pipeline Does
+
+This repository implements a machine learning and hydrologic modelling pipeline that directly addresses Gaps G1–G5:
+
+1. **RF-based GRACE gap-filling (→ G4)**: Covariate-driven Random Forest reconstruction of the GRACE–GRACE-FO gap, producing a continuous 213-month $TWS$ record across 103 basins.
+2. **Robust trend estimation (→ G3)**: Theil-Sen slope + Hamed & Rao autocorrelation-corrected Modified Mann-Kendall significance testing.
+3. **Twin ML attribution (→ G1, G2, G5)**: Paired Random Forest models ($M_{nat}$ vs. $M_{anthro}$) — data-driven (G1), applied globally across 103 basins (G2), with forced feature-sampling to amplify weak abstraction signals (G5) and 3-Year Block CV to prevent temporal leakage (G3).
 
 ### Governing Hydrologic Mass Balance
 $$\frac{dTWS}{dt} = TWSC = P - ET - Q - (GW_{abs} + SW_{abs})$$

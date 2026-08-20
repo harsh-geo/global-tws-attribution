@@ -130,6 +130,11 @@ fprintf('\nStarting Block-Bootstrap iterations across %d basins (N_boot=%d, Bloc
     n_basins, N_boot, block_len);
 
 %% Parallel Basin Bootstrap Loop
+% Setup DataQueue for parfor progress tracking
+dq = parallel.pool.DataQueue;
+afterEach(dq, @(~) fprintf('.'));
+fprintf('Progress (1 dot per basin): ');
+
 parfor b = 1:n_basins
     % Deseasonalize predictor time series
     twsc_b = deseasonalize_baseline(TWSC_obs(:, b), target_dates);
@@ -163,6 +168,7 @@ parfor b = 1:n_basins
     
     valid_mask = ~isnan(y_full) & ~any(isnan(X_ant_full), 2);
     if sum(valid_mask) < 36
+        send(dq, b);
         continue;
     end
     
@@ -261,7 +267,11 @@ parfor b = 1:n_basins
             top_driver_prob(b, f) = mean(b_ranks(valid_res, f) == 1);
         end
     end
+    
+    % Update progress
+    send(dq, b);
 end
+fprintf('\n');
 
 fprintf('\nBlock-Bootstrapping complete across all basins.\n');
 fprintf('Average Bootstrap Delta R^2: %.4f (95%% CI Mean: [%.4f, %.4f])\n', ...

@@ -85,6 +85,11 @@ RMSE_anthro      = nan(1, n_basins);
 
 TWSC_pred_nat    = nan(n_time, n_basins);
 TWSC_pred_anthro = nan(n_time, n_basins);
+TWSC_pred_anthro_upper = nan(n_time, n_basins);
+TWSC_pred_anthro_lower = nan(n_time, n_basins);
+
+feature_importance = nan(n_basins, 7);
+shap_values = nan(n_time, n_basins, 7);
 
 has_parallel = license('test', 'Distrib_Computing_Toolbox');
 if has_parallel
@@ -155,19 +160,25 @@ parfor b = 1:n_basins
         reluLayer
         fullyConnectedLayer(1)
     ];
-    dlnet_nat = dlnetwork(layers_nat);
     
-    averageGrad_nat = [];
-    averageSqGrad_nat = [];
+    num_ensemble = 3;
+    y_preds_nat_ens = zeros(n_time, num_ensemble);
     
-    for epoch = 1:numEpochs
-        [loss, gradients, state] = dlfeval(@modelLossNat, dlnet_nat, X_dl_nat, Y_dl, lambda);
-        dlnet_nat.State = state;
-        [dlnet_nat, averageGrad_nat, averageSqGrad_nat] = adamupdate(dlnet_nat, gradients, averageGrad_nat, averageSqGrad_nat, epoch);
+    for e = 1:num_ensemble
+        dlnet_nat = dlnetwork(layers_nat);
+        averageGrad_nat = [];
+        averageSqGrad_nat = [];
+        for epoch = 1:numEpochs
+            [loss, gradients, state] = dlfeval(@modelLossNat, dlnet_nat, X_dl_nat, Y_dl, lambda);
+            dlnet_nat.State = state;
+            [dlnet_nat, averageGrad_nat, averageSqGrad_nat] = adamupdate(dlnet_nat, gradients, averageGrad_nat, averageSqGrad_nat, epoch);
+        end
+        y_pred_nat_dl = predict(dlnet_nat, X_dl_nat);
+        y_preds_nat_ens(:, e) = extractdata(y_pred_nat_dl)';
     end
     
-    y_pred_nat_dl = predict(dlnet_nat, X_dl_nat);
-    y_pred_nat = extractdata(y_pred_nat_dl)';
+    y_pred_nat = mean(y_preds_nat_ens, 2);
+    y_stdev_nat = std(y_preds_nat_ens, 0, 2);
     
     res_nat = twsc_target - y_pred_nat;
     ss_tot = sum((twsc_target - mean(twsc_target)).^2);
@@ -185,25 +196,65 @@ parfor b = 1:n_basins
         reluLayer
         fullyConnectedLayer(1)
     ];
-    dlnet_ant = dlnetwork(layers_ant);
     
-    averageGrad_ant = [];
-    averageSqGrad_ant = [];
-    
-    for epoch = 1:numEpochs
-        [loss, gradients, state] = dlfeval(@modelLossAnt, dlnet_ant, X_dl_ant, Y_dl, lambda);
-        dlnet_ant.State = state;
-        [dlnet_ant, averageGrad_ant, averageSqGrad_ant] = adamupdate(dlnet_ant, gradients, averageGrad_ant, averageSqGrad_ant, epoch);
+    y_preds_ant_ens = zeros(n_time, num_ensemble);
+    for e = 1:num_ensemble
+        dlnet_ant_temp = dlnetwork(layers_ant);
+        averageGrad_ant = [];
+        averageSqGrad_ant = [];
+        for epoch = 1:numEpochs
+            [loss, gradients, state] = dlfeval(@modelLossAnt, dlnet_ant_temp, X_dl_ant, Y_dl, lambda);
+            dlnet_ant_temp.State = state;
+            [dlnet_ant_temp, averageGrad_ant, averageSqGrad_ant] = adamupdate(dlnet_ant_temp, gradients, averageGrad_ant, averageSqGrad_ant, epoch);
+        end
+        y_pred_ant_dl = predict(dlnet_ant_temp, X_dl_ant);
+        y_preds_ant_ens(:, e) = extractdata(y_pred_ant_dl)';
+        
+        if e == 1
+            dlnet_ant = dlnet_ant_temp;
+        end
     end
     
-    y_pred_ant_dl = predict(dlnet_ant, X_dl_ant);
-    y_pred_ant = extractdata(y_pred_ant_dl)';
+    y_pred_ant = mean(y_preds_ant_ens, 2);
+    y_stdev_ant = std(y_preds_ant_ens, 0, 2);
     
     res_ant = twsc_target - y_pred_ant;
     
     R2_anthro(b)   = 1 - (sum(res_ant.^2) / ss_tot);
     RMSE_anthro(b) = sqrt(mean(res_ant.^2));
     TWSC_pred_anthro(:, b) = y_pred_ant;
+    
+    %% --- Compute Uncertainty (95% CI) ---
+    y_stdev_total = sqrt(y_stdev_nat.^2 + y_stdev_ant.^2);
+    TWSC_pred_anthro_upper(:, b) = y_pred_ant + 1.96 * y_stdev_total;
+    TWSC_pred_anthro_lower(:, b) = y_pred_ant - 1.96 * y_stdev_total;
+    
+    %% Feature Permutation Importance Scores
+    feat_imp_b = zeros(1, 7);
+    baseline_mse = mean((twsc_target - y_pred_ant).^2);
+    for f = 1:7
+        X_shuffled = X_anthro;
+        X_shuffled(:, f) = X_shuffled(randperm(n_time), f);
+        X_dl_shuf = dlarray(X_shuffled', 'CB');
+        y_shuf_dl = predict(dlnet_ant, X_dl_shuf);
+        y_shuf = extractdata(y_shuf_dl)';
+        shuffled_mse = mean((twsc_target - y_shuf).^2);
+        feat_imp_b(f) = shuffled_mse - baseline_mse; % Delta Error
+    end
+    feature_importance(b, :) = feat_imp_b;
+    
+    %% SHAP Computation (Event-level attribution)
+    try
+        customPredictFn = @(X_in) pinnPredictWrapper(dlnet_ant, X_in);
+        explainer = shapley(customPredictFn, X_anthro);
+        shap_vals_table = explainer.ShapleyValues;
+        shap_matrix = shap_vals_table{:, :};
+        
+        shap_b = nan(n_time, 7);
+        shap_b(:, :) = shap_matrix;
+        shap_values(:, b, :) = shap_b;
+    catch
+    end
     
     %% Metrics
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
@@ -218,7 +269,8 @@ fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitna
 attr_file = fullfile(output_dir, 'attribution_results_pinn.mat');
 fprintf('Saving PINN attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
-    'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
+    'feature_importance', 'shap_values', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
+    'TWSC_pred_anthro_upper', 'TWSC_pred_anthro_lower', '-v7.3');
 fprintf('=== STEP 4e Complete: Twin PINN Model Attribution Completed & Saved ===\n\n');
 
 %% Helper Functions
@@ -270,4 +322,10 @@ function x_deseason = deseasonalize(x, dates)
         end
         x_deseason(idx_m) = x(idx_m) - monthly_mean;
     end
+end
+
+function Y = pinnPredictWrapper(dlnet, X)
+    X_dl = dlarray(X', 'CB');
+    Y_dl = predict(dlnet, X_dl);
+    Y = extractdata(Y_dl)';
 end
