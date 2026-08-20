@@ -1,14 +1,13 @@
 # Disentangling Natural and Anthropogenic Drivers of Global Terrestrial Water Storage Decline using Machine Learning
 
-**Author Name(s)**  
-*Affiliation(s), Department, University/Institution*  
-**Corresponding Author:** `email@institution.edu`
+**Harsh Singh, Prasanta Sanyal**  
+*Department of Earth Sciences, Indian Institute of Science Education and Research Kolkata, West Bengal, India.*
 
 ---
 
 ## Abstract
 
-Terrestrial Water Storage (TWS), encompassing surface water, soil moisture, groundwater, and snow/ice reserves, is declining at unprecedented rates across numerous global river basins, posing severe threats to water security, food production, and ecosystem sustainability. While satellite gravimetry missions—specifically the Gravity Recovery and Climate Experiment (GRACE, 2002–2017) and its successor GRACE Follow-On (GRACE-FO, 2018–present)—have revolutionized our ability to monitor large-scale water mass redistribution, disentangling the relative contributions of natural hydroclimate variability from anthropogenic water abstractions remains a formidable challenge. 
+Terrestrial Water Storage (TWS), encompassing surface water, soil moisture, groundwater, and snow/ice reserves, is declining at unprecedented rates across numerous global river basins, posing severe threats to water security, food production, and ecosystem sustainability. While satellite gravimetry missions, specifically the Gravity Recovery and Climate Experiment (GRACE, 2002–2017) and its successor GRACE Follow-On (GRACE-FO, 2018–present), have revolutionized our ability to monitor large-scale water mass redistribution, disentangling the relative contributions of natural hydroclimate variability from anthropogenic water abstractions remains a formidable challenge. 
 
 Here, we present a Twin Machine Learning Attribution Framework based on Random Forest ensemble regressors, applied across the world’s 103 largest river basins at 0.5° × 0.5° spatial resolution. We first reconstruct the ~11-month observational gap between GRACE and GRACE-FO (July 2017–May 2018) using hydroclimate predictor variables (precipitation, evapotranspiration, runoff, and 2m air temperature) from ERA5 reanalysis and GLEAM datasets. We then quantify long-term TWS trends using the robust Theil-Sen slope estimator and assess their statistical significance via the autocorrelation-corrected Hamed and Rao Modified Mann-Kendall test. 
 
