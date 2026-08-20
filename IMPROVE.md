@@ -26,6 +26,10 @@ This document outlines the strategic methodological enhancements designed to ele
 - **Implementation**: Integrated ERA5 2m temperature (`t2m`) and Oceanic Niño Index (ONI) alongside mass balance fluxes ($P, ET, Q, GW_{abs}, SW_{abs}$).
 - **Impact**: Captures thermodynamic controls and teleconnection modes modulating storage variability.
 
+### 6. Block-Bootstrapping Uncertainty Quantification ($N = 1000$)
+- **Implementation**: Moving / Contiguous Block-Bootstrapping with 36-month (3-year) non-overlapping time blocks ($N_{\text{boot}} = 1000$ iterations per basin) executed in parallel via `step04c_bootstrap_uncertainty.m`.
+- **Impact**: Establishes explicit empirical 95% confidence intervals ($2.5^{\text{th}}$ to $97.5^{\text{th}}$ percentiles) for the anthropogenic attribution gain ($\Delta R^2 \pm \text{CI}$), individual feature permutation importance distributions, and driver ranking stability probabilities across all 103 basins.
+
 ---
 
 ## 🚀 Phase 2: Future High-Impact Roadmap Extensions
@@ -45,6 +49,6 @@ This document outlines the strategic methodological enhancements designed to ele
 ### 4. Non-Linear Regime Shift & Breakpoint Analysis
 - **Breakpoint Detection**: Implement BFAST or Pettitt's tests to identify abrupt regime shifts caused by episodic megadroughts or major policy shifts in groundwater extraction.
 
-### 5. Full Probabilistic Uncertainty Quantification (UQ)
+### 5. Input Error Propagation & Quantile Ensembles
 - **Input Error Propagation**: Propagate native GRACE harmonic/mascon error fields through the machine learning ensemble.
-- **Quantile Regression Forests**: Construct dynamic 95% confidence prediction envelopes for individual basin reconstructions.
+- **Quantile Regression Forests**: Construct dynamic non-parametric quantile prediction envelopes (5th, 50th, 95th percentiles) for individual basin reconstructions.

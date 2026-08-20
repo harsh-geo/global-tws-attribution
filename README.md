@@ -75,15 +75,20 @@ The pipeline processes raw hydroclimate data into publication-ready figures and 
 - **Model 2 ($M_{anthro}$)**: Predicts $TWSC$ from natural drivers plus human water abstractions ($GW_{abs}, SW_{abs}$).
 - Hyperparameter tuning (`NumPredictorsToSample=1`, deeper trees) and fixed-baseline deseasonalization (2004–2009) to capture weak abstraction signals without temporal leakage.
 
-### 4. Validation & Trend Analysis (`src/validation/`)
+### 4. Block-Bootstrapping Uncertainty Quantification (`src/modeling/`)
+- Non-overlapping 36-month (3-year) Block-Bootstrapping ($N = 1000$ iterations per basin) via `step04c_bootstrap_uncertainty.m`.
+- Generates empirical 95% confidence intervals ($2.5^{\text{th}}$ to $97.5^{\text{th}}$ percentiles) for the anthropogenic attribution gain ($\Delta R^2 \pm \text{CI}$), predictor permutation importances, and feature ranking probabilities.
+
+### 5. Validation & Trend Analysis (`src/validation/`)
 - 3-Year Contiguous Block Cross-Validation across all 103 basins.
 - Autocorrelation-corrected Hamed & Rao Modified Mann-Kendall Test ($p < 0.05$) and Theil-Sen slope estimation.
 
-### 5. Publication Figures (`visualization/`)
+### 6. Publication Figures (`visualization/`)
 - Global TWS trends and stippled significance maps (`plot_basin_trends.m`).
 - Global dominant driver maps (`plot_global_attribution_map.m`).
 - Model comparison boxplots and lollipop charts (`plot_model_comparison_boxplots.m`, `plot_delta_r2_lollipop.m`).
 - High-resolution case study timeseries and scatter plots (`plot_basin_51_analysis.m`).
+- Empirical bootstrap confidence intervals & predictor distributions (`plot_bootstrap_uncertainty.m`).
 
 ---
 
@@ -110,5 +115,7 @@ sbatch slurm/submit_pipeline.sh
 
 - `outputs/tables/validation_and_trends.mat`: Master validation and trend results matrix.
 - `outputs/tables/attribution_results.mat`: Twin model predictions, feature importances, and 95% confidence intervals.
+- `outputs/tables/bootstrap_uncertainty_results.mat`: $N = 1000$ block-bootstrap distribution matrices and empirical confidence bounds.
+- `outputs/tables/bootstrap_attribution_uncertainty.csv`: Exported CSV summary table with 95% CIs and driver probabilities.
 - `outputs/tables/basin_summary_table.csv`: Exported CSV summary table for all 103 basins.
-- `outputs/figures/`: High-resolution figures including global trends, attribution maps, top depleted basins, and case studies.
+- `outputs/figures/`: High-resolution figures including global trends, attribution maps, bootstrap uncertainty forest plots, and case studies.
