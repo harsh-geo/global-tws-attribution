@@ -133,7 +133,7 @@ fprintf('\nStarting Block-Bootstrap iterations across %d basins (N_boot=%d, Bloc
 % Setup DataQueue for parfor progress tracking
 dq = parallel.pool.DataQueue;
 afterEach(dq, @(~) fprintf('.'));
-fprintf('Progress (1 dot per basin): ');
+fprintf('Progress (1 dot per 50 bootstrap iterations per basin): ');
 
 parfor b = 1:n_basins
     % Deseasonalize predictor time series
@@ -242,6 +242,11 @@ parfor b = 1:n_basins
             ranks(sorted_idx(f)) = f;
         end
         b_ranks(iter, :) = ranks;
+        
+        % Send progress dot every 50 iterations so it doesn't look frozen
+        if mod(iter, 50) == 0
+            send(dq, 1);
+        end
     end
     
     % Store distributions
@@ -268,8 +273,6 @@ parfor b = 1:n_basins
         end
     end
     
-    % Update progress
-    send(dq, b);
 end
 fprintf('\n');
 
