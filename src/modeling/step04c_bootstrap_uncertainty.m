@@ -57,7 +57,7 @@ if exist(ts_file, 'file')
     GW_basin    = ts_data.GW_basin;
     SW_basin    = ts_data.SW_basin;
     grace_dates = ts_data.grace_dates;
-    
+
     if isfield(ts_data, 'T_basin')
         T_basin = ts_data.T_basin;
     else
@@ -100,8 +100,8 @@ if has_parallel
 end
 
 %% Block Bootstrap Hyperparameters
-N_boot      = 1000; % Number of bootstrap resamples
-block_len   = 36;   % 3-year contiguous block length (36 months)
+N_boot      = 1000; % Restored to 1000 for robust CI estimation
+block_len   = 12;   % Keeping 1-year contiguous block length
 n_trees     = 100;  % Number of trees per bootstrap forest (optimized for N=1000)
 min_leaf    = 5;
 n_features  = 7;    % P, ET, Q, T, ONI, GW_abs, SW_abs
@@ -132,8 +132,8 @@ fprintf('\nStarting Block-Bootstrap iterations across %d basins (N_boot=%d, Bloc
 %% Parallel Basin Bootstrap Loop
 % Setup DataQueue for parfor progress tracking
 dq = parallel.pool.DataQueue;
-afterEach(dq, @(~) fprintf('.'));
-fprintf('Progress (1 dot per 50 bootstrap iterations per basin): ');
+afterEach(dq, @(b) eval('fprintf(''Basin %d complete.\n'', b); drawnow;'));
+fprintf('Progress (Basin ID will print upon completion):\n');
 
 parfor b = 1:n_basins
     % Deseasonalize predictor time series
@@ -142,81 +142,81 @@ parfor b = 1:n_basins
     et_b   = deseasonalize_baseline(ET_basin(:, b), target_dates);
     t_b    = deseasonalize_baseline(T_basin(:, b), target_dates);
     oni_b  = ONI_index;
-    
+
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
         q_b = deseasonalize_baseline(Q_basin(:, b), target_dates);
     else
         q_b = zeros(n_time, 1);
     end
-    
+
     if ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
         gw_b = deseasonalize_baseline(GW_basin(:, b), target_dates);
     else
         gw_b = zeros(n_time, 1);
     end
-    
+
     if ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
         sw_b = deseasonalize_baseline(SW_basin(:, b), target_dates);
     else
         sw_b = zeros(n_time, 1);
     end
-    
+
     % Matrices
     X_nat_full = [p_b, et_b, q_b, t_b, oni_b];
     X_ant_full = [p_b, et_b, q_b, t_b, oni_b, gw_b, sw_b];
     y_full     = twsc_b;
-    
+
     valid_mask = ~isnan(y_full) & ~any(isnan(X_ant_full), 2);
     if sum(valid_mask) < 36
         send(dq, b);
         continue;
     end
-    
+
     % Candidate block start indices (Moving block bootstrap pool)
     max_start_idx = n_time - block_len + 1;
-    
+
     % Local bootstrap storage for basin b
     b_delta_r2  = nan(N_boot, 1);
     b_feat_imp  = nan(N_boot, n_features);
     b_ranks     = nan(N_boot, n_features);
-    
+
     % Bootstrap resample loop
     for iter = 1:N_boot
         % Draw random block start points with replacement
         block_starts = randi(max_start_idx, num_blocks_needed, 1);
-        
+
         % Construct synthetic time-series indices
         sample_indices = [];
         for k = 1:num_blocks_needed
             sample_indices = [sample_indices; (block_starts(k) : block_starts(k) + block_len - 1)']; %#ok<AGROW>
         end
         sample_indices = sample_indices(1:n_time);
-        
+
         % Extract resampled observations
         y_boot     = y_full(sample_indices);
         X_nat_boot = X_nat_full(sample_indices, :);
         X_ant_boot = X_ant_full(sample_indices, :);
-        
+
         boot_valid = ~isnan(y_boot) & ~any(isnan(X_ant_boot), 2);
         if sum(boot_valid) < 30
             continue;
         end
-        
+
         y_v   = y_boot(boot_valid);
         X_nat = X_nat_boot(boot_valid, :);
         X_ant = X_ant_boot(boot_valid, :);
-        
+
         % 1. Train Model 1 (M_nat)
         rf_nat = TreeBagger(n_trees, X_nat, y_v, ...
             'Method', 'regression', ...
             'OOBPrediction', 'on', ...
             'MinLeafSize', min_leaf, ...
             'NumPredictorsToSample', 1);
-        
+
         y_oob_nat = oobPredict(rf_nat);
         ss_tot    = sum((y_v - mean(y_v, 'omitnan')).^2, 'omitnan');
         r2_nat_i  = 1 - (sum((y_v - y_oob_nat).^2, 'omitnan') / ss_tot);
-        
+
         % 2. Train Model 2 (M_anthro)
         rf_ant = TreeBagger(n_trees, X_ant, y_v, ...
             'Method', 'regression', ...
@@ -224,17 +224,17 @@ parfor b = 1:n_basins
             'OOBPredictorImportance', 'on', ...
             'MinLeafSize', min_leaf, ...
             'NumPredictorsToSample', 1);
-        
+
         y_oob_ant = oobPredict(rf_ant);
         r2_ant_i  = 1 - (sum((y_v - y_oob_ant).^2, 'omitnan') / ss_tot);
-        
+
         % Attribution Gain
         b_delta_r2(iter) = r2_ant_i - r2_nat_i;
-        
+
         % Permutation Predictor Importance
         imp_scores = rf_ant.OOBPermutedPredictorDeltaError;
         b_feat_imp(iter, :) = imp_scores;
-        
+
         % Rank features (1 = Highest importance)
         [~, sorted_idx] = sort(imp_scores, 'descend');
         ranks = zeros(1, n_features);
@@ -242,37 +242,38 @@ parfor b = 1:n_basins
             ranks(sorted_idx(f)) = f;
         end
         b_ranks(iter, :) = ranks;
-        
-        % Send progress dot every 50 iterations so it doesn't look frozen
-        if mod(iter, 50) == 0
-            send(dq, 1);
-        end
+
+        % Send progress dot per basin
     end
-    
+
+    % Emit progress dot to command window when basin completes
+    send(dq, b);
+
     % Store distributions
     boot_delta_r2_dist(:, b)   = b_delta_r2;
     boot_feat_imp_dist(:, b, :) = b_feat_imp;
-    
+
     % Calculate Empirical Statistics & 95% Confidence Intervals
     valid_res = ~isnan(b_delta_r2);
-    if sum(valid_res) >= 50
+    min_required_boot = max(5, floor(N_boot * 0.5));
+    if sum(valid_res) >= min_required_boot
         delta_r2_mean(b)   = mean(b_delta_r2(valid_res));
         delta_r2_median(b) = median(b_delta_r2(valid_res));
         delta_r2_se(b)     = std(b_delta_r2(valid_res));
         delta_r2_ci_low(b) = prctile(b_delta_r2(valid_res), 2.5);
         delta_r2_ci_upp(b) = prctile(b_delta_r2(valid_res), 97.5);
-        
+
         for f = 1:n_features
             f_imp = b_feat_imp(valid_res, f);
             feat_imp_mean(b, f)   = mean(f_imp, 'omitnan');
             feat_imp_ci_low(b, f) = prctile(f_imp, 2.5);
             feat_imp_ci_upp(b, f) = prctile(f_imp, 97.5);
-            
+
             % Probability that feature f is Rank 1
             top_driver_prob(b, f) = mean(b_ranks(valid_res, f) == 1);
         end
     end
-    
+
 end
 fprintf('\n');
 
@@ -353,20 +354,20 @@ fprintf('=== STEP 4c Complete: Block-Bootstrapping Uncertainty Quantification Sa
 
 %% Helper Deseasonalization Function with Baseline
 function x_deseason = deseasonalize_baseline(x, dates)
-    x_deseason = nan(size(x));
-    months = month(dates);
-    baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
-    
-    for m = 1:12
-        idx_m = (months == m);
-        idx_baseline_m = idx_m & baseline_idx;
-        
-        if sum(~isnan(x(idx_baseline_m))) < 3
-            monthly_mean = mean(x(idx_m), 'omitnan');
-        else
-            monthly_mean = mean(x(idx_baseline_m), 'omitnan');
-        end
-        
-        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+x_deseason = nan(size(x));
+months = month(dates);
+baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
+
+for m = 1:12
+    idx_m = (months == m);
+    idx_baseline_m = idx_m & baseline_idx;
+
+    if sum(~isnan(x(idx_baseline_m))) < 3
+        monthly_mean = mean(x(idx_m), 'omitnan');
+    else
+        monthly_mean = mean(x(idx_baseline_m), 'omitnan');
     end
+
+    x_deseason(idx_m) = x(idx_m) - monthly_mean;
+end
 end
