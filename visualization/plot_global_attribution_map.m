@@ -20,10 +20,25 @@ out_dir = fullfile(project_root, 'outputs', 'figures');
 if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
 trend_mat = fullfile(table_dir, 'validation_and_trends.mat');
-if ~exist(trend_mat, 'file')
-    error('File validation_and_trends.mat not found.');
+attr_mat  = fullfile(table_dir, 'attribution_results.mat');
+
+if exist(trend_mat, 'file')
+    load(trend_mat, 'feature_importance');
+elseif exist(attr_mat, 'file')
+    attr_data = load(attr_mat, 'feature_importance');
+    if isfield(attr_data, 'feature_importance') && ~isempty(attr_data.feature_importance)
+        feature_importance = attr_data.feature_importance;
+    end
+else
+    error('Neither validation_and_trends.mat nor attribution_results.mat found.');
 end
-load(trend_mat, 'feature_importance');
+
+% Ensure feature_importance is [n_basins x n_features]
+[dim_a, dim_b] = size(feature_importance);
+if dim_a < dim_b && (dim_a == 5 || dim_a == 7)
+    feature_importance = feature_importance';
+end
+[n_basins, n_features] = size(feature_importance);
 
 basin_map_mat = fullfile(proc_dir, 'basin_map.mat');
 if ~exist(basin_map_mat, 'file')
@@ -45,14 +60,37 @@ if dim1 == 720 && dim2 == 360
     basin_mask = basin_mask';
 end
 
-n_basins = size(feature_importance, 1);
-
-% 2. Determine dominant driver per basin
-% Feature order: 1:P, 2:ET, 3:Q, 4:GW_abs, 5:SW_abs
+% 2. Determine dominant driver per basin and configure palette
 [~, dom_driver_idx] = max(feature_importance, [], 2);
 
-% Map driver index to spatial grid
-% 0 = background, 1-5 = drivers
+if n_features == 7
+    % 7-Feature Architecture: P, ET, Q, T, ONI, GW_abs, SW_abs
+    driver_labels = {'Precipitation (P)', 'Evapotranspiration (ET)', 'Runoff (Q)', ...
+                     'Temperature (T)', 'ENSO (ONI)', ...
+                     'Groundwater Abstraction (GW)', 'Surface Water Abstraction (SW)'};
+    cmap = [
+        0.00, 0.45, 0.74;   % 1: Blue (P)
+        0.18, 0.65, 0.24;   % 2: Green (ET)
+        0.00, 0.75, 0.85;   % 3: Cyan (Q)
+        0.93, 0.69, 0.13;   % 4: Gold/Amber (T / t2m)
+        0.60, 0.20, 0.75;   % 5: Purple (ONI)
+        0.85, 0.33, 0.10;   % 6: Orange (GW_abs)
+        0.85, 0.00, 0.00    % 7: Red (SW_abs)
+    ];
+else
+    % 5-Feature Architecture: P, ET, Q, GW_abs, SW_abs
+    driver_labels = {'Precipitation (P)', 'Evapotranspiration (ET)', 'Runoff (Q)', ...
+                     'Groundwater Abstraction (GW)', 'Surface Water Abstraction (SW)'};
+    cmap = [
+        0.00, 0.45, 0.74;   % 1: Blue (P)
+        0.18, 0.65, 0.24;   % 2: Green (ET)
+        0.00, 0.75, 0.85;   % 3: Cyan (Q)
+        0.85, 0.33, 0.10;   % 4: Orange (GW_abs)
+        0.85, 0.00, 0.00    % 5: Red (SW_abs)
+    ];
+end
+
+% Map driver index to spatial grid (0 = background, 1..n_features = drivers)
 driver_map = zeros(size(basin_mask));
 
 for b = 1:n_basins
@@ -63,7 +101,7 @@ for b = 1:n_basins
 end
 
 % 3. Visualization
-figure('Name', 'Global Attribution Map', 'Color', 'w', 'Position', [100 100 1000 500]);
+figure('Name', 'Global Attribution Map', 'Color', 'w', 'Position', [100 100 1100 550]);
 
 % Create spatial coordinates for 0.5 deg grid
 lon = linspace(-179.75, 179.75, 720);
@@ -71,7 +109,7 @@ lat = linspace(-89.75, 89.75, 360);
 
 h = imagesc(lon, lat, driver_map);
 set(gca, 'YDir', 'normal'); % Fix inverted map
-set(gca, 'Color', [0.8 0.8 0.8]); % Gray background for non-basin areas
+set(gca, 'Color', [0.85 0.85 0.85]); % Light gray background for non-basin areas
 h.AlphaData = (driver_map > 0);
 axis image;
 axis off;
@@ -85,30 +123,21 @@ catch
     warning('Could not load coastlines.');
 end
 
-% Custom categorical colormap
-% 1=P (Blue), 2=ET (Green), 3=Q (Cyan), 4=GW (Orange), 5=SW (Red)
-cmap = [
-    0, 0, 1;         % Blue (P)
-    0, 0.8, 0;       % Green (ET)
-    0, 1, 1;         % Cyan (Q)
-    1, 0.5, 0;       % Orange (GW_abs)
-    1, 0, 0          % Red (SW_abs)
-    ];
 colormap(cmap);
-caxis([0.5, 5.5]); % Center colors on integers 1-5
+caxis([0.5, n_features + 0.5]); % Center colors on integers 1..n_features
 
-title('Dominant Driver of TWS Variability', 'FontSize', 16, 'FontWeight', 'bold');
+title('Dominant Driver of TWS Variability (M_{anthro} Feature Importance)', ...
+    'FontSize', 15, 'FontWeight', 'bold');
 
 % Add categorical legend
-driver_labels = {'Precipitation (P)', 'Evapotranspiration (ET)', 'Runoff (Q)', ...
-    'Groundwater Abstraction (GW)', 'Surface Water Abstraction (SW)'};
-
 hold on;
-for i = 1:5
-    h_leg(i) = patch(NaN, NaN, cmap(i,:), 'EdgeColor', 'k');
+h_leg = gobjects(n_features, 1);
+for i = 1:n_features
+    h_leg(i) = patch(NaN, NaN, cmap(i, :), 'EdgeColor', 'k');
 end
-L = legend(h_leg, driver_labels, 'Location', 'southoutside', 'Orientation', 'horizontal', 'NumColumns', 3);
-L.FontSize = 11;
+L = legend(h_leg, driver_labels, 'Location', 'southoutside', 'Orientation', 'horizontal', ...
+    'NumColumns', min(4, n_features));
+L.FontSize = 10.5;
 L.EdgeColor = 'none';
 
 % Save figure

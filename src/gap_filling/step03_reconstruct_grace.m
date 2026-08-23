@@ -41,6 +41,8 @@ if ~exist('P_basin', 'var') || isempty(P_basin) || ~exist('TWS_basin', 'var') ||
         Q_basin     = data.Q_basin;
         if isfield(data, 'GW_basin'), GW_basin = data.GW_basin; end
         if isfield(data, 'SW_basin'), SW_basin = data.SW_basin; end
+        if isfield(data, 'T_basin'), T_basin = data.T_basin; end
+        if isfield(data, 'ONI_index'), ONI_index = data.ONI_index; end
         TWS_basin   = data.TWS_basin;
         grace_dates = data.grace_dates;
     else
@@ -80,6 +82,18 @@ parfor b = 1:n_basins
     p_b   = P_basin(:, b);
     et_b  = ET_basin(:, b);
     q_b   = Q_basin(:, b);
+    
+    if exist('T_basin', 'var') && size(T_basin, 2) >= b
+        t_b = T_basin(:, b);
+    else
+        t_b = zeros(n_time, 1);
+    end
+    
+    if exist('ONI_index', 'var')
+        oni_b = ONI_index;
+    else
+        oni_b = zeros(n_time, 1);
+    end
 
     % Check if predictor data exists
     if all(isnan(p_b)) || all(isnan(et_b))
@@ -90,10 +104,10 @@ parfor b = 1:n_basins
     % Compute hydroclimate water balance residual as additional predictor: P - ET - Q
     if ~isempty(q_b) && ~all(isnan(q_b))
         p_minus_et_q = p_b - et_b - q_b;
-        X_all = [p_b, et_b, q_b, p_minus_et_q];
+        X_all = [p_b, et_b, q_b, p_minus_et_q, t_b, oni_b];
     else
         p_minus_et = p_b - et_b;
-        X_all = [p_b, et_b, p_minus_et];
+        X_all = [p_b, et_b, p_minus_et, t_b, oni_b];
     end
 
     % Identify valid training months: GRACE TWS is observed AND predictors are valid

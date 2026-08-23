@@ -1,16 +1,17 @@
-%% step04_run_attribution.m - Twin Random Forest Machine Learning Driver Attribution
+%% step04_run_attribution.m - Twin RF Attribution (Baseline Anomaly Framework)
 % =========================================================================
 % AUTHOR: Computational Hydrology & HPC Pipeline
 % PROJECT: Global Terrestrial Water Storage (TWS) Attribution
 % GOVERNING MASS BALANCE: dTWS/dt = TWSC = P - ET - Q - (GW_abs + SW_abs)
 % =========================================================================
 % PURPOSE:
-%   1. Compute Terrestrial Water Storage Change (TWSC) using centered finite differences:
-%        TWSC(t) = [TWS(t+1) - TWS(t-1)] / (2 * dt)
-%   2. Train Twin Random Forest Models per basin in parallel (parfor):
-%      - Model 1 (Natural Baseline M_nat):     TWSC = f(P, ET, Q)
-%      - Model 2 (Full Anthropogenic M_anthro): TWSC = f(P, ET, Q, GW_abs, SW_abs)
-%   3. Compute Attribution Metrics:
+%   1. Load gap-filled TWS and basin hydroclimate predictors.
+%   2. Calculate TWSC using central finite differences.
+%   3. Deseasonalize all variables using the 2004-2008 GRACE baseline.
+%   4. Train Twin Random Forest Models per basin in parallel (parfor):
+%      - Model 1 (Natural Baseline M_nat):     TWSC = f(P_anom, ET_anom, Q_anom)
+%      - Model 2 (Full Anthropogenic M_anthro): TWSC = f(P_anom, ET_anom, Q_anom, GW_anom, SW_anom)
+%   5. Compute Attribution Metrics:
 %      - Variance Explained Gain: Delta R^2 = R^2_anthro - R^2_nat
 %      - Out-of-Bag (OOB) Feature Permutation Importance per hydroclimate driver
 %
@@ -19,7 +20,7 @@
 %     R2_nat, R2_anthro, Delta_R2, feature_importance, TWSC_obs, TWSC_pred_nat, TWSC_pred_anthro
 % =========================================================================
 
-fprintf('=== STEP 4: Starting Twin RF Machine Learning Attribution ===\n');
+fprintf('=== STEP 4: Starting Twin RF Machine Learning Attribution (Anomalies) ===\n');
 
 %% Directory Setup & Data Loading
 script_dir   = fileparts(mfilename('fullpath'));
@@ -64,17 +65,6 @@ if ~exist('P_basin', 'var') || isempty(P_basin) || ...
         GW_basin    = ts_data.GW_basin;
         SW_basin    = ts_data.SW_basin;
         grace_dates = ts_data.grace_dates;
-        
-        if isfield(ts_data, 'T_basin')
-            T_basin = ts_data.T_basin;
-        else
-            T_basin = zeros(size(P_basin));
-        end
-        if isfield(ts_data, 'ONI_index')
-            ONI_index = ts_data.ONI_index;
-        else
-            ONI_index = zeros(size(P_basin, 1), 1);
-        end
     else
         fprintf('Basin time-series not in memory. Running step02_aggregate_basins.m...\n');
         run(fullfile(project_root, 'src', 'preprocessing', 'step02_aggregate_basins.m'));
@@ -114,67 +104,60 @@ RMSE_anthro      = nan(1, n_basins);
 
 TWSC_pred_nat    = nan(n_time, n_basins);
 TWSC_pred_anthro = nan(n_time, n_basins);
-TWSC_pred_anthro_upper = nan(n_time, n_basins);
-TWSC_pred_anthro_lower = nan(n_time, n_basins);
 
-% Feature Importance matrix: [103 basins x 7 features]
-% Features: 1:P, 2:ET, 3:Q, 4:T, 5:ONI, 6:GW_abs, 7:SW_abs
-feature_importance = nan(n_basins, 7);
+% Feature Importance matrix: [103 basins x 5 features]
+% Features: 1:P, 2:ET, 3:Q, 4:GW_abs, 5:SW_abs
+feature_importance = nan(n_basins, 5);
 
-% SHAP values matrix: [N_time x N_basins x 7 features]
-shap_values = nan(n_time, n_basins, 7);
-
-%% Parallel Processing Setup (Graceful Fallback)
-has_parallel = license('test', 'Distrib_Computing_Toolbox');
-if has_parallel
-    try
-        if isempty(gcp('nocreate'))
-            num_cores = feature('numcores');
-            parpool('local', num_cores);
-        end
-    catch ME
-        fprintf('Note: Running serially (Parallel pool initialization failed: %s)\n', ME.message);
-    end
-else
-    fprintf('Note: Parallel Computing Toolbox not found. Running sequentially.\n');
+%% Parallel Processing Setup
+num_cores = feature('numcores');
+if isempty(gcp('nocreate'))
+    parpool('local', num_cores);
 end
-
-target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
 
 n_trees       = 500;
 min_leaf_size = 5;
 
 % Tuning variables to sample to force selection of weak anthropogenic signals
-n_vars_sample_nat = 1;  % M_nat has 5 predictors (P, ET, Q, T, ONI)
-n_vars_sample_ant = 1;  % M_anthro has 7 predictors (P, ET, Q, T, ONI, GW_abs, SW_abs)
+n_vars_sample_nat = 1;  % M_nat has 3 predictors (P_anom, ET_anom, Q_anom)
+n_vars_sample_ant = 1;  % M_anthro has 5 predictors (P_anom, ET_anom, Q_anom, GW_anom, SW_anom)
 
-fprintf('\nRunning Twin RF Attribution Models in parallel across %d basins...\n', n_basins);
+% Define baseline indices (2004-2008) for anomaly calculation
+target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
+baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2008;
+
+fprintf('\nRunning Twin RF Attribution Models (Anomalies 2004-2008 baseline) in parallel across %d basins...\n', n_basins);
 
 %% Parfor Parallel Attribution Execution
 parfor b = 1:n_basins
-    twsc_target = deseasonalize(TWSC_obs(:, b), target_dates);
-    p_b  = deseasonalize(P_basin(:, b), target_dates);
-    et_b = deseasonalize(ET_basin(:, b), target_dates);
+    twsc_target = TWSC_obs(:, b);
+    twsc_target = deseasonalize(twsc_target, target_dates, baseline_idx);
     
-    t_b = deseasonalize(T_basin(:, b), target_dates);
-    oni_b = ONI_index; % ONI is already a global anomaly index, don't deseasonalize
+    p_b  = P_basin(:, b);
+    p_b  = deseasonalize(p_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
+    
+    et_b = ET_basin(:, b);
+    et_b = deseasonalize(et_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     
     % Runoff handling
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
-        q_b = deseasonalize(Q_basin(:, b), target_dates);
+        q_b = Q_basin(:, b);
+        q_b = deseasonalize(q_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     else
         q_b = zeros(n_time, 1);
     end
     
     % Abstraction handling
     if ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
-        gw_b = deseasonalize(GW_basin(:, b), target_dates);
+        gw_b = GW_basin(:, b);
+        gw_b = deseasonalize(gw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     else
         gw_b = zeros(n_time, 1);
     end
     
     if ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
-        sw_b = deseasonalize(SW_basin(:, b), target_dates);
+        sw_b = SW_basin(:, b);
+        sw_b = deseasonalize(sw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
     else
         sw_b = zeros(n_time, 1);
     end
@@ -184,11 +167,11 @@ parfor b = 1:n_basins
     twsc_anthro_b = nan(n_time, 1);
     
     % Feature matrices
-    % Model 1 (Natural): P, ET, Q, T, ONI
-    X_nat = [p_b, et_b, q_b, t_b, oni_b];
+    % Model 1 (Natural): P_anom, ET_anom, Q_anom
+    X_nat = [p_b, et_b, q_b];
     
-    % Model 2 (Anthropogenic): P, ET, Q, T, ONI, GW_abs, SW_abs
-    X_anthro = [p_b, et_b, q_b, t_b, oni_b, gw_b, sw_b];
+    % Model 2 (Anthropogenic): P_anom, ET_anom, Q_anom, GW_abs_anom, SW_abs_anom
+    X_anthro = [p_b, et_b, q_b, gw_b, sw_b];
     
     % Valid sample mask
     valid_mask = ~isnan(twsc_target) & ~any(isnan(X_anthro), 2);
@@ -204,7 +187,6 @@ parfor b = 1:n_basins
     rf_nat = TreeBagger(n_trees, X_nat_val, y_val, ...
         'Method', 'regression', ...
         'OOBPrediction', 'on', ...
-        'OOBPredictorImportance', 'on', ...
         'MinLeafSize', min_leaf_size, ...
         'NumPredictorsToSample', n_vars_sample_nat);
     
@@ -235,45 +217,14 @@ parfor b = 1:n_basins
     twsc_anthro_b(valid_mask) = y_oob_ant;
     TWSC_pred_anthro(:, b)    = twsc_anthro_b;
     
-    %% --- Compute Uncertainty (95% CI) using Tree StDev ---
-    % Predict on the whole valid mask to get stdev
-    [~, y_stdev_nat] = predict(rf_nat, X_nat_val);
-    [~, y_stdev_ant] = predict(rf_anthro, X_ant_val);
-    
-    % Combine uncertainties (assuming independence for simplicity)
-    y_stdev_total = sqrt(y_stdev_nat.^2 + y_stdev_ant.^2);
-    
-    twsc_ci_upper_b = nan(n_time, 1);
-    twsc_ci_lower_b = nan(n_time, 1);
-    twsc_ci_upper_b(valid_mask) = y_oob_ant + 1.96 * y_stdev_total;
-    twsc_ci_lower_b(valid_mask) = y_oob_ant - 1.96 * y_stdev_total;
-    
-    TWSC_pred_anthro_upper(:, b) = twsc_ci_upper_b;
-    TWSC_pred_anthro_lower(:, b) = twsc_ci_lower_b;
-    
     % Variance Explained Gain: Delta R^2
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
     
     % Feature Permutation Importance Scores
-    feat_imp_b = nan(1, 7);
-    feat_imp_b(1:7) = rf_anthro.OOBPermutedPredictorDeltaError;
-    feature_importance(b, :) = feat_imp_b;
-    
-    % SHAP Computation (Event-level attribution)
-    try
-        explainer = shapley(rf_anthro, X_ant_val);
-        shap_vals_table = explainer.ShapleyValues;
-        shap_matrix = shap_vals_table{:, :};
-        
-        shap_b = nan(n_time, 7);
-        shap_b(valid_mask, :) = shap_matrix;
-        shap_values(:, b, :) = shap_b;
-    catch
-        % shapley might fail on older MATLAB versions or specific edge cases
-    end
+    feature_importance(b, :) = rf_anthro.OOBPermutedPredictorDeltaError;
 end
 
-fprintf('\nAttribution modeling complete.\n');
+fprintf('\nAttribution modeling complete (Anomalies).\n');
 fprintf('Average R^2 (Natural Model M_nat):     %.3f\n', mean(R2_nat, 'omitnan'));
 fprintf('Average R^2 (Anthropogenic M_anthro):  %.3f\n', mean(R2_anthro, 'omitnan'));
 fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitnan'));
@@ -282,29 +233,21 @@ fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitna
 attr_file = fullfile(output_dir, 'attribution_results.mat');
 fprintf('Saving attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
-    'feature_importance', 'shap_values', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
-    'TWSC_pred_anthro_upper', 'TWSC_pred_anthro_lower', '-v7.3');
-fprintf('=== STEP 4 Complete: Twin Model Attribution Completed & Saved ===\n\n');
+    'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
+fprintf('=== STEP 4 Complete: Twin Model Attribution (Anomalies) Completed & Saved ===\n\n');
 
-%% Helper Function for Deseasonalization
-function x_deseason = deseasonalize(x, dates)
+%% Helper Function for Deseasonalization with Baseline
+function x_deseason = deseasonalize(x, dates, baseline_idx)
     x_deseason = nan(size(x));
     months = month(dates);
-    
-    % Define baseline period: 2004-2009 inclusive to prevent data leakage
-    baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
-    
     for m = 1:12
         idx_m = (months == m);
-        idx_baseline_m = idx_m & baseline_idx;
-        
-        % Fallback if baseline data is entirely missing (rare)
-        if sum(~isnan(x(idx_baseline_m))) < 3
-            monthly_mean = mean(x(idx_m), 'omitnan');
+        idx_base = idx_m & baseline_idx;
+        if any(idx_base) && ~all(isnan(x(idx_base)))
+            monthly_mean = mean(x(idx_base), 'omitnan');
         else
-            monthly_mean = mean(x(idx_baseline_m), 'omitnan');
+            monthly_mean = mean(x(idx_m), 'omitnan'); % fallback
         end
-        
         x_deseason(idx_m) = x(idx_m) - monthly_mean;
     end
 end
