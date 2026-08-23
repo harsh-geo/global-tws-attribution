@@ -34,7 +34,7 @@
 - **Headless Execution**: Ensure MATLAB code executes cleanly without GUI calls (`-nodisplay -nosplash -nodesktop`).
 
 ### 3. Machine Learning Modeling Standards
-- **GRACE Gap-Filling**: Predict missing GRACE/GRACE-FO months (including the 2017–2018 observational gap) using a Random Forest regressor trained on hydroclimate drivers ($P, ET, Q, \text{Temperature}$) during overlapping continuous observation periods (2002–2017).
+- **GRACE Gap-Filling**: Predict missing GRACE/GRACE-FO months (including the 2017–2018 observational gap) using a Random Forest regressor trained on hydroclimate drivers ($P, ET, Q, \text{Temperature}, ONI$) during overlapping continuous observation periods (2002–2017).
 - **$TWSC$ Finite Difference**: Calculate $TWSC$ using centered finite differences:
   $$TWSC(t) = \frac{TWS(t+1) - TWS(t-1)}{2 \Delta t}$$
 - **Twin Attribution Formulation**:

@@ -99,7 +99,7 @@ box on;
 grid on;
 set(gca, 'FontSize', 10, 'LineWidth', 1.0, 'GridAlpha', 0.15);
 
-feature_names = {'P', 'ET', 'Q', 'T', 'ONI', 'GW_{abs}', 'SW_{abs}'};
+feature_names = {'P', 'ET', 'Q', 'GW_{abs}', 'SW_{abs}'};
 n_feat = length(feature_names);
 
 % Aggregate all bootstrap draws across all basins for global feature importance spread
@@ -109,8 +109,6 @@ colors = [
     0.20, 0.50, 0.80;  % P - blue
     0.25, 0.70, 0.45;  % ET - green
     0.35, 0.75, 0.85;  % Q - cyan
-    0.95, 0.60, 0.20;  % T - orange
-    0.70, 0.40, 0.80;  % ONI - purple
     0.85, 0.20, 0.20;  % GW_abs - red
     0.90, 0.45, 0.25   % SW_abs - coral
 ];

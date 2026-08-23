@@ -59,6 +59,14 @@ TWS_reconstructed = TWS_basin; % Will be populated with predicted values at NaN 
 oob_rmse          = nan(1, n_basins);
 oob_r2            = nan(1, n_basins);
 
+% Ensure T_basin and ONI_index exist for parfor scoping
+if ~exist('T_basin', 'var')
+    T_basin = zeros(n_time, n_basins);
+end
+if ~exist('ONI_index', 'var')
+    ONI_index = zeros(n_time, 1);
+end
+
 %% Setup MATLAB Parallel Pool (HPC SLURM Integration)
 num_cores = feature('numcores');
 if isempty(gcp('nocreate'))
@@ -83,17 +91,8 @@ parfor b = 1:n_basins
     et_b  = ET_basin(:, b);
     q_b   = Q_basin(:, b);
     
-    if exist('T_basin', 'var') && size(T_basin, 2) >= b
-        t_b = T_basin(:, b);
-    else
-        t_b = zeros(n_time, 1);
-    end
-    
-    if exist('ONI_index', 'var')
-        oni_b = ONI_index;
-    else
-        oni_b = zeros(n_time, 1);
-    end
+    t_b = T_basin(:, b);
+    oni_b = ONI_index;
 
     % Check if predictor data exists
     if all(isnan(p_b)) || all(isnan(et_b))

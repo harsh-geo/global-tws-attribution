@@ -7,8 +7,8 @@
 % PURPOSE:
 %   1. Compute Terrestrial Water Storage Change (TWSC)
 %   2. Train Twin LSTM Models per basin:
-%      - Model 1 (Natural Baseline M_nat):     TWSC = f(P, ET, Q, T, ONI)
-%      - Model 2 (Full Anthropogenic M_anthro): TWSC = f(P, ET, Q, T, ONI, GW_abs, SW_abs)
+%      - Model 1 (Natural Baseline M_nat):     TWSC = f(P, ET, Q)
+%      - Model 2 (Full Anthropogenic M_anthro): TWSC = f(P, ET, Q, GW_abs, SW_abs)
 %   3. Compute Attribution Metrics:
 %      - Variance Explained Gain: Delta R^2 = R^2_anthro - R^2_nat
 %
@@ -53,17 +53,6 @@ GW_basin    = ts_data.GW_basin;
 SW_basin    = ts_data.SW_basin;
 grace_dates = ts_data.grace_dates;
 
-if isfield(ts_data, 'T_basin')
-    T_basin = ts_data.T_basin;
-else
-    T_basin = zeros(size(P_basin));
-end
-if isfield(ts_data, 'ONI_index')
-    ONI_index = ts_data.ONI_index;
-else
-    ONI_index = zeros(size(P_basin, 1), 1);
-end
-
 [n_time, n_basins] = size(TWS);
 fprintf('Time points: %d | Basins: %d\n', n_time, n_basins);
 
@@ -89,8 +78,8 @@ TWSC_pred_anthro = nan(n_time, n_basins);
 TWSC_pred_anthro_upper = nan(n_time, n_basins);
 TWSC_pred_anthro_lower = nan(n_time, n_basins);
 
-feature_importance = nan(n_basins, 7);
-shap_values = nan(n_time, n_basins, 7);
+feature_importance = nan(n_basins, 5);
+shap_values = nan(n_time, n_basins, 5);
 
 has_parallel = license('test', 'Distrib_Computing_Toolbox');
 if has_parallel
@@ -114,11 +103,9 @@ numHiddenUnits2 = 32;
 maxEpochs = 150;
 
 parfor b = 1:n_basins
-    twsc_target = deseasonalize(TWSC_obs(:, b), target_dates);
-    p_b  = deseasonalize(P_basin(:, b), target_dates);
-    et_b = deseasonalize(ET_basin(:, b), target_dates);
-    t_b  = deseasonalize(T_basin(:, b), target_dates);
-    oni_b = ONI_index;
+    twsc_b = deseasonalize(TWSC_obs(:, b), target_dates);
+    p_b    = deseasonalize(P_basin(:, b), target_dates);
+    et_b   = deseasonalize(ET_basin(:, b), target_dates);
     
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
         q_b = deseasonalize(Q_basin(:, b), target_dates);
@@ -138,9 +125,11 @@ parfor b = 1:n_basins
         sw_b = zeros(n_time, 1);
     end
     
+    twsc_target = twsc_b;
+    
     % Fill missing just in case
-    X_nat = fillmissing([p_b, et_b, q_b, t_b, oni_b], 'linear');
-    X_anthro = fillmissing([p_b, et_b, q_b, t_b, oni_b, gw_b, sw_b], 'linear');
+    X_nat = fillmissing([p_b, et_b, q_b], 'linear');
+    X_anthro = fillmissing([p_b, et_b, q_b, gw_b, sw_b], 'linear');
     twsc_target = fillmissing(twsc_target, 'linear');
     
     % Prepare for LSTM: inputs must be Features x TimeSteps cell arrays

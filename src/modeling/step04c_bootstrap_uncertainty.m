@@ -8,11 +8,11 @@
 %      using 36-month (3-year) contiguous time blocks to preserve temporal
 %      autocorrelation and hydrological memory.
 %   2. Fit Twin Random Forest models across each bootstrap realization:
-%      - Model 1 (Natural Baseline M_nat):     TWSC ~ f(P, ET, Q, T, ONI)
-%      - Model 2 (Full Anthropogenic M_anthro): TWSC ~ f(P, ET, Q, T, ONI, GW_abs, SW_abs)
+%      - Model 1 (Natural Baseline M_nat):     TWSC ~ f(P, ET, Q)
+%      - Model 2 (Full Anthropogenic M_anthro): TWSC ~ f(P, ET, Q, GW_abs, SW_abs)
 %   3. Compute Empirical Uncertainty & Confidence Intervals (95% CI):
 %      - Delta R^2 distribution, mean, median, standard error (SE), 2.5th & 97.5th percentiles.
-%      - Feature permutation importance distributions (P, ET, Q, T, ONI, GW_abs, SW_abs).
+%      - Feature permutation importance distributions (P, ET, Q, GW_abs, SW_abs).
 %      - Feature rank probabilities and stability metrics per basin.
 %
 % OUTPUTS:
@@ -101,10 +101,10 @@ end
 
 %% Block Bootstrap Hyperparameters
 N_boot      = 1000; % Restored to 1000 for robust CI estimation
-block_len   = 12;   % Keeping 1-year contiguous block length
+block_len   = 36;   % 3-Year contiguous block size
 n_trees     = 100;  % Number of trees per bootstrap forest (optimized for N=1000)
 min_leaf    = 5;
-n_features  = 7;    % P, ET, Q, T, ONI, GW_abs, SW_abs
+n_features  = 5;    % P, ET, Q, GW_abs, SW_abs
 
 % Number of blocks needed to construct a synthetic time-series of length n_time
 num_blocks_needed = ceil(n_time / block_len);
@@ -136,12 +136,9 @@ afterEach(dq, @(b) eval('fprintf(''Basin %d complete.\n'', b); drawnow;'));
 fprintf('Progress (Basin ID will print upon completion):\n');
 
 parfor b = 1:n_basins
-    % Deseasonalize predictor time series
     twsc_b = deseasonalize_baseline(TWSC_obs(:, b), target_dates);
     p_b    = deseasonalize_baseline(P_basin(:, b), target_dates);
     et_b   = deseasonalize_baseline(ET_basin(:, b), target_dates);
-    t_b    = deseasonalize_baseline(T_basin(:, b), target_dates);
-    oni_b  = ONI_index;
 
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
         q_b = deseasonalize_baseline(Q_basin(:, b), target_dates);
@@ -162,8 +159,8 @@ parfor b = 1:n_basins
     end
 
     % Matrices
-    X_nat_full = [p_b, et_b, q_b, t_b, oni_b];
-    X_ant_full = [p_b, et_b, q_b, t_b, oni_b, gw_b, sw_b];
+    X_nat_full = [p_b, et_b, q_b];
+    X_ant_full = [p_b, et_b, q_b, gw_b, sw_b];
     y_full     = twsc_b;
 
     valid_mask = ~isnan(y_full) & ~any(isnan(X_ant_full), 2);
