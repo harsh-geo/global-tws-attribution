@@ -113,7 +113,11 @@ parfor i = 1:n_targets
         % Store results
         res = struct();
         res.basin_id = b;
-        res.shap_values = shap_vals_table{:, :};
+        if istable(shap_vals_table)
+            res.shap_values = shap_vals_table{:, :};
+        else
+            res.shap_values = shap_vals_table;
+        end
         res.valid_mask = valid_mask;
         res.X_ant_val = X_ant_val;
         shap_results{i} = res;
