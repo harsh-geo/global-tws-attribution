@@ -107,7 +107,7 @@ parfor i = 1:n_targets
     
     try
         % For speed, use a subset or the whole valid dataset if small
-        explainer = shapley(predict_fcn, X_ant_val);
+        explainer = shapley(predict_fcn, X_ant_val, 'QueryPoint', X_ant_val);
         shap_vals_table = explainer.ShapleyValues;
         
         % Store results
