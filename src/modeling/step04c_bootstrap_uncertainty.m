@@ -132,7 +132,7 @@ fprintf('\nStarting Block-Bootstrap iterations across %d basins (N_boot=%d, Bloc
 %% Parallel Basin Bootstrap Loop
 % Setup DataQueue for parfor progress tracking
 dq = parallel.pool.DataQueue;
-afterEach(dq, @(b) eval('fprintf(''Basin %d complete.\n'', b); drawnow;'));
+afterEach(dq, @(b) print_progress(b));
 fprintf('Progress (Basin ID will print upon completion):\n');
 
 parfor b = 1:n_basins
@@ -289,7 +289,7 @@ save(out_mat, 'N_boot', 'block_len', 'boot_delta_r2_dist', 'boot_feat_imp_dist',
 out_csv = fullfile(output_dir, 'bootstrap_attribution_uncertainty.csv');
 fprintf('Exporting CSV summary table to %s...\n', out_csv);
 
-feature_names = {'P', 'ET', 'Q', 'T', 'ONI', 'GW_abs', 'SW_abs'};
+feature_names = {'P', 'ET', 'Q', 'GW_abs', 'SW_abs'};
 
 Basin_ID         = (1:n_basins)';
 Delta_R2_Mean    = delta_r2_mean;
@@ -310,41 +310,29 @@ Imp_Q_Mean       = feat_imp_mean(:, 3);
 Imp_Q_CI_Low     = feat_imp_ci_low(:, 3);
 Imp_Q_CI_Upp     = feat_imp_ci_upp(:, 3);
 
-Imp_T_Mean       = feat_imp_mean(:, 4);
-Imp_T_CI_Low     = feat_imp_ci_low(:, 4);
-Imp_T_CI_Upp     = feat_imp_ci_upp(:, 4);
+Imp_GW_Mean      = feat_imp_mean(:, 4);
+Imp_GW_CI_Low    = feat_imp_ci_low(:, 4);
+Imp_GW_CI_Upp    = feat_imp_ci_upp(:, 4);
 
-Imp_ONI_Mean     = feat_imp_mean(:, 5);
-Imp_ONI_CI_Low   = feat_imp_ci_low(:, 5);
-Imp_ONI_CI_Upp   = feat_imp_ci_upp(:, 5);
-
-Imp_GW_Mean      = feat_imp_mean(:, 6);
-Imp_GW_CI_Low    = feat_imp_ci_low(:, 6);
-Imp_GW_CI_Upp    = feat_imp_ci_upp(:, 6);
-
-Imp_SW_Mean      = feat_imp_mean(:, 7);
-Imp_SW_CI_Low    = feat_imp_ci_low(:, 7);
-Imp_SW_CI_Upp    = feat_imp_ci_upp(:, 7);
+Imp_SW_Mean      = feat_imp_mean(:, 5);
+Imp_SW_CI_Low    = feat_imp_ci_low(:, 5);
+Imp_SW_CI_Upp    = feat_imp_ci_upp(:, 5);
 
 Top_Driver_Prob_P  = top_driver_prob(:, 1);
 Top_Driver_Prob_ET = top_driver_prob(:, 2);
 Top_Driver_Prob_Q  = top_driver_prob(:, 3);
-Top_Driver_Prob_T  = top_driver_prob(:, 4);
-Top_Driver_Prob_ONI= top_driver_prob(:, 5);
-Top_Driver_Prob_GW = top_driver_prob(:, 6);
-Top_Driver_Prob_SW = top_driver_prob(:, 7);
+Top_Driver_Prob_GW = top_driver_prob(:, 4);
+Top_Driver_Prob_SW = top_driver_prob(:, 5);
 
 T_summary = table(Basin_ID, Delta_R2_Mean, Delta_R2_Median, Delta_R2_SE, ...
     Delta_R2_CI_2_5, Delta_R2_CI_97_5, ...
     Imp_P_Mean, Imp_P_CI_Low, Imp_P_CI_Upp, ...
     Imp_ET_Mean, Imp_ET_CI_Low, Imp_ET_CI_Upp, ...
     Imp_Q_Mean, Imp_Q_CI_Low, Imp_Q_CI_Upp, ...
-    Imp_T_Mean, Imp_T_CI_Low, Imp_T_CI_Upp, ...
-    Imp_ONI_Mean, Imp_ONI_CI_Low, Imp_ONI_CI_Upp, ...
     Imp_GW_Mean, Imp_GW_CI_Low, Imp_GW_CI_Upp, ...
     Imp_SW_Mean, Imp_SW_CI_Low, Imp_SW_CI_Upp, ...
     Top_Driver_Prob_P, Top_Driver_Prob_ET, Top_Driver_Prob_Q, ...
-    Top_Driver_Prob_T, Top_Driver_Prob_ONI, Top_Driver_Prob_GW, Top_Driver_Prob_SW);
+    Top_Driver_Prob_GW, Top_Driver_Prob_SW);
 
 writetable(T_summary, out_csv);
 fprintf('=== STEP 4c Complete: Block-Bootstrapping Uncertainty Quantification Saved ===\n\n');
@@ -367,4 +355,10 @@ for m = 1:12
 
     x_deseason(idx_m) = x(idx_m) - monthly_mean;
 end
+end
+
+%% Helper Progress Function
+function print_progress(b)
+    fprintf('Basin %d complete.\n', b);
+    drawnow;
 end

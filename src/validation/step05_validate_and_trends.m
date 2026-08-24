@@ -237,6 +237,8 @@ fprintf('Mean Anthro Model CV   -> NSE: %.3f | KGE: %.3f | RMSE: %.3f cm/mo\n', 
 fprintf('\n--- Computing Long-Term TWS Decline Trends & Significance ---\n');
 
 tws_trend_slope  = nan(1, n_basins); % cm/year
+tws_trend_ci_lower = nan(1, n_basins);
+tws_trend_ci_upper = nan(1, n_basins);
 mk_p_value       = nan(1, n_basins); % Autocorrelation-corrected p-value
 mk_h_sig         = false(1, n_basins); % True if p < 0.05
 
@@ -251,7 +253,7 @@ for b = 1:n_basins
         x_tws = time_years(valid_tws);
         
         % Compute Theil-Sen's Slope Estimator (cm/year)
-        tws_trend_slope(b) = theil_sen_slope(x_tws, y_tws);
+        [tws_trend_slope(b), tws_trend_ci_lower(b), tws_trend_ci_upper(b)] = theil_sen_slope(x_tws, y_tws);
         
         % Compute Hamed & Rao (1998) Modified Mann-Kendall Test
         [p_val, h_sig] = hamed_rao_mann_kendall(y_tws, 0.05);
@@ -274,7 +276,7 @@ fprintf('Saving final master pipeline results matrix to %s...\n', out_mat);
 % Compile all available final pipeline metrics and series into single final MAT file
 vars_to_save = {'NSE_nat', 'NSE_anthro', 'KGE_nat', 'KGE_anthro', ...
                 'RMSE_cv_nat', 'RMSE_cv_anthro', 'TWSC_cv_nat', 'TWSC_cv_anthro', ...
-                'tws_trend_slope', 'mk_p_value', 'mk_h_sig'};
+                'tws_trend_slope', 'tws_trend_ci_lower', 'tws_trend_ci_upper', 'mk_p_value', 'mk_h_sig'};
 
 optional_vars = {'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
                  'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', ...
@@ -293,6 +295,8 @@ save(out_mat, vars_to_save{:}, '-v7.3');
 csv_file = fullfile(table_dir, 'basin_summary_table.csv');
 Basin_ID = (1:n_basins)';
 Trend_cm_yr = tws_trend_slope';
+Trend_CI_Lower = tws_trend_ci_lower';
+Trend_CI_Upper = tws_trend_ci_upper';
 MK_p_value  = mk_p_value';
 Is_Significant = mk_h_sig';
 NSE_Natural = NSE_nat';
@@ -300,7 +304,7 @@ NSE_Anthro  = NSE_anthro';
 KGE_Natural = KGE_nat';
 KGE_Anthro  = KGE_anthro';
 
-summary_tbl = table(Basin_ID, Trend_cm_yr, MK_p_value, Is_Significant, ...
+summary_tbl = table(Basin_ID, Trend_cm_yr, Trend_CI_Lower, Trend_CI_Upper, MK_p_value, Is_Significant, ...
                     NSE_Natural, NSE_Anthro, KGE_Natural, KGE_Anthro);
 writetable(summary_tbl, csv_file);
 fprintf('Exported summary table to %s\n', csv_file);
@@ -355,8 +359,8 @@ function kge = compute_kge(obs, sim)
     kge   = 1 - sqrt((r - 1)^2 + (alpha - 1)^2 + beta^2);
 end
 
-function slope = theil_sen_slope(x, y)
-    % Theil-Sen's robust non-parametric slope estimator
+function [slope, ci_lower, ci_upper] = theil_sen_slope(x, y)
+    % Theil-Sen's robust non-parametric slope estimator with 95% CI
     n = length(y);
     slopes = [];
     count = 1;
@@ -368,7 +372,25 @@ function slope = theil_sen_slope(x, y)
             end
         end
     end
+    slopes = sort(slopes);
     slope = median(slopes);
+    
+    if nargout > 1
+        % Compute 95% Confidence Intervals (Sen, 1968)
+        % Z_95 = 1.96
+        var_S = n * (n - 1) * (2*n + 5) / 18;
+        C_alpha = 1.96 * sqrt(var_S);
+        N_prime = length(slopes);
+        
+        M1 = round((N_prime - C_alpha) / 2);
+        M2 = round((N_prime + C_alpha) / 2) + 1;
+        
+        M1 = max(1, min(M1, N_prime));
+        M2 = max(1, min(M2, N_prime));
+        
+        ci_lower = slopes(M1);
+        ci_upper = slopes(M2);
+    end
 end
 
 function [p_val, h_sig] = hamed_rao_mann_kendall(y, alpha_sig)
