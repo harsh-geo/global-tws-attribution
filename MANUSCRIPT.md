@@ -155,7 +155,7 @@ Application of the Theil-Sen slope estimator to the gap-filled, continuous TWS r
 
 > **[INSERT Figure 5 HERE]**  
 > *Description:* A horizontal or vertical bar chart showing the top-20 declining basins with their Theil-Sen trend slopes. Basin names or IDs on the y-axis. Significance indicated by bar color.  
-> **Figure 5.** Bar chart of the 20 basins with the most negative TWS trends (cm/year), ranked from most severe to least severe. Bars are colored red for statistically significant trends and gray for non-significant trends. Error bars or confidence intervals from the Theil-Sen estimator may be included.
+> **Figure 5.** Bar chart of the 20 basins with the most negative TWS trends (km³/year), ranked from most severe to least severe. Bars are colored red for statistically significant trends and gray for non-significant trends. Error bars or confidence intervals from the Theil-Sen estimator may be included.
 
 ---
 
