@@ -25,6 +25,7 @@ figure_dir = fullfile(project_root, 'outputs', 'figures');
 if ~exist(figure_dir, 'dir')
     mkdir(figure_dir);
 end
+proc_dir = fullfile(project_root, 'data', 'processed');
 
 boot_mat = fullfile(table_dir, 'bootstrap_uncertainty_results.mat');
 if ~exist(boot_mat, 'file')
@@ -87,7 +88,16 @@ end
 
 ylim([0.5, top_k + 0.5]);
 yticks(y_pos);
-yticklabels(arrayfun(@(b) sprintf('Basin %d', b), selected_basins, 'UniformOutput', false));
+
+basin_names_mat = fullfile(proc_dir, 'tws_basins.mat');
+if exist(basin_names_mat, 'file')
+    b_data = load(basin_names_mat, 'basin_names');
+    basin_labels = b_data.basin_names(selected_basins);
+else
+    basin_labels = arrayfun(@(b) sprintf('Basin %d', b), selected_basins, 'UniformOutput', false);
+end
+yticklabels(basin_labels);
+set(gca, 'TickLabelInterpreter', 'none');
 xlabel('Anthropogenic Explanatory Gain (\Delta R^2)', 'FontSize', 11, 'FontWeight', 'bold');
 title(sprintf('(a) \\Delta R^2 Attribution Gain (95%% Bootstrap CI, N=%d)', N_boot), ...
     'FontSize', 12, 'FontWeight', 'bold');

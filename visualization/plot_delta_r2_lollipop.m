@@ -104,8 +104,9 @@ figure('Name', 'Delta R2 Attribution', 'Color', 'w', 'Position', [100 100 1050 6
 hold on;
 
 % Draw bars
-b = bar(1:n_subset, sorted_delta, 'FaceColor', 'flat', 'EdgeColor', 'k', 'LineWidth', 0.5);
-b.CData = bar_colors;
+for i = 1:n_subset
+    bar(i, sorted_delta(i), 'FaceColor', bar_colors(i, :), 'EdgeColor', 'k', 'LineWidth', 0.5);
+end
 
 % Add zero reference line
 plot([0, n_subset+1], [0 0], 'k--', 'LineWidth', 1.5);
@@ -127,7 +128,7 @@ box on;
 % Add categorical legend (only for drivers that exist in the palette)
 h_leg = gobjects(n_features, 1);
 for i = 1:n_features
-    h_leg(i) = patch(NaN, NaN, cmap(i, :), 'EdgeColor', 'k');
+    h_leg(i) = patch(NaN, NaN, 'white', 'FaceColor', cmap(i, :), 'EdgeColor', 'k');
 end
 L = legend(h_leg, driver_labels, 'Location', 'northeast');
 L.FontSize = 10;

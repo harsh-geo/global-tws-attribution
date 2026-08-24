@@ -22,8 +22,16 @@ trend_mat = fullfile(table_dir, 'validation_and_trends.mat');
 if ~exist(trend_mat, 'file')
     error('File validation_and_trends.mat not found.');
 end
-load(trend_mat, 'tws_trend_slope', 'mk_h_sig');
-
+vars = load(trend_mat);
+tws_trend_slope = vars.tws_trend_slope;
+mk_h_sig = vars.mk_h_sig;
+if isfield(vars, 'tws_trend_ci_lower')
+    ci_lower = vars.tws_trend_ci_lower;
+    ci_upper = vars.tws_trend_ci_upper;
+else
+    ci_lower = tws_trend_slope;
+    ci_upper = tws_trend_slope;
+end
 basin_names_mat = fullfile(proc_dir, 'tws_basins.mat');
 if ~exist(basin_names_mat, 'file')
     error('File tws_basins.mat not found.');
@@ -64,6 +72,8 @@ end
 % Calculate trend in km3/year
 % cm/year * 1e-5 km/cm * km^2 = km^3/year
 trend_km3_yr = tws_trend_slope .* 1e-5 .* basin_area;
+ci_lower_km3_yr = ci_lower .* 1e-5 .* basin_area;
+ci_upper_km3_yr = ci_upper .* 1e-5 .* basin_area;
 
 % 3. Find the 20 most negative trends
 [sorted_trends, sort_idx] = sort(trend_km3_yr, 'ascend');
@@ -71,6 +81,9 @@ top20_idx = sort_idx(1:20);
 top20_trends = sorted_trends(1:20);
 top20_names = basin_names(top20_idx);
 top20_sig = mk_h_sig(top20_idx);
+
+top20_ci_lower = ci_lower_km3_yr(top20_idx);
+top20_ci_upper = ci_upper_km3_yr(top20_idx);
 
 % 4. Create the bar chart
 figure('Name', 'Top 20 Negative Trends', 'Color', 'w', 'Position', [100, 100, 1000, 500]);
@@ -86,6 +99,11 @@ for i = 1:20
         bar_color = [0.7 0.7 0.7];
     end
     bar(i, top20_trends(i), 'FaceColor', bar_color, 'EdgeColor', 'k');
+    
+    % Add errorbar
+    yneg = top20_trends(i) - top20_ci_lower(i);
+    ypos = top20_ci_upper(i) - top20_trends(i);
+    errorbar(i, top20_trends(i), yneg, ypos, 'k', 'LineStyle', 'none', 'LineWidth', 1.5, 'CapSize', 8);
 end
 
 % Formatting
@@ -101,7 +119,7 @@ box on;
 % Add custom legend for significance
 h_sig = bar(NaN, NaN, 'FaceColor', [0.8500, 0.3250, 0.0980], 'EdgeColor', 'k');
 h_nsig = bar(NaN, NaN, 'FaceColor', [0.7 0.7 0.7], 'EdgeColor', 'k');
-legend([h_sig, h_nsig], {'Significant (p < 0.05)', 'Not Significant'}, 'Location', 'northeast');
+legend([h_sig, h_nsig], {'Significant (p < 0.05)', 'Not Significant'}, 'Location', 'best');
 
 % Save figure
 saveas(gcf, fullfile(out_dir, 'top20_negative_trends.png'));
