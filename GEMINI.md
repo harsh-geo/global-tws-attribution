@@ -47,6 +47,11 @@
 - **Hydrologic Metrics**: Evaluate model predictions using Nash-Sutcliffe Efficiency (NSE), Kling-Gupta Efficiency (KGE), RMSE, and Pearson $R^2$.
 - **Trend Significance**: Calculate trend magnitudes using Theil-Sen's Slope Estimator ($cm/yr$) and assess statistical significance ($p < 0.05$) using the **Hamed and Rao Modified Mann-Kendall Test** (autocorrelation-corrected).
 
+### 5. Basin Selection & Reporting
+- **Ranking Metric**: Whenever mentioning, sorting, or selecting "top" specific basins based on TWS trends, ALWAYS use the absolute **volumetric rate ($km^3/year$)**, NOT the equivalent water height rate ($cm/year$).
+- **Calculation**: Convert $cm/year$ to $km^3/year$ using the basin's spatial area ($km^2$) before ranking ($km^3/year = cm/year \times 10^{-5} \times area_{km^2}$).
+
+
 ---
 
 ## Workspace Directory Architecture
