@@ -46,7 +46,7 @@ TWSC_obs  = attr_data.TWSC_obs;
 
 % Define baseline for anomalies
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
-baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2008;
+baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2009;
 
 %% 1. Partition Basins: Pristine vs. Irrigated
 % Calculate mean total abstraction per basin

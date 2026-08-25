@@ -125,7 +125,7 @@ if isempty(gcp('nocreate'))
 end
 
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
-baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2008;
+baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2009;
 
 n_trees = 500;
 min_leaf_size = 5;

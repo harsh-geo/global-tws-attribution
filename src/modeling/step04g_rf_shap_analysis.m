@@ -42,7 +42,7 @@ TWSC_obs  = attr_data.TWSC_obs;
 
 % Define baseline for anomalies
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
-baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2008;
+baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2009;
 
 %% Select Top Hotspot Basins for SHAP (To save compute)
 % Basins 51 (Ganges), 39 (Tigris), 42 (Indus), 13 (Colorado), 40 (Hari Rud)

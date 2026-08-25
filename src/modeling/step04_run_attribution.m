@@ -7,7 +7,7 @@
 % PURPOSE:
 %   1. Load gap-filled TWS and basin hydroclimate predictors.
 %   2. Calculate TWSC using central finite differences.
-%   3. Deseasonalize all variables using the 2004-2008 GRACE baseline.
+%   3. Deseasonalize all variables using the 2004-2009 GRACE baseline.
 %   4. Train Twin Random Forest Models per basin in parallel (parfor):
 %      - Model 1 (Natural Baseline M_nat):     TWSC = f(P_anom, ET_anom, Q_anom)
 %      - Model 2 (Full Anthropogenic M_anthro): TWSC = f(P_anom, ET_anom, Q_anom, GW_anom, SW_anom)
@@ -122,11 +122,11 @@ min_leaf_size = 5;
 n_vars_sample_nat = 1;  % M_nat has 3 predictors (P_anom, ET_anom, Q_anom)
 n_vars_sample_ant = 1;  % M_anthro has 5 predictors (P_anom, ET_anom, Q_anom, GW_anom, SW_anom)
 
-% Define baseline indices (2004-2008) for anomaly calculation
+% Define baseline indices (2004-2009) for anomaly calculation
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
-baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2008;
+baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2009;
 
-fprintf('\nRunning Twin RF Attribution Models (Anomalies 2004-2008 baseline) in parallel across %d basins...\n', n_basins);
+fprintf('\nRunning Twin RF Attribution Models (Anomalies 2004-2009 baseline) in parallel across %d basins...\n', n_basins);
 
 %% Parfor Parallel Attribution Execution
 parfor b = 1:n_basins
@@ -134,15 +134,15 @@ parfor b = 1:n_basins
     twsc_target = deseasonalize(twsc_target, target_dates, baseline_idx);
     
     p_b  = P_basin(:, b);
-    p_b  = deseasonalize(p_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
+    p_b  = deseasonalize(p_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
     
     et_b = ET_basin(:, b);
-    et_b = deseasonalize(et_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
+    et_b = deseasonalize(et_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
     
     % Runoff handling
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
         q_b = Q_basin(:, b);
-        q_b = deseasonalize(q_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
+        q_b = deseasonalize(q_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
     else
         q_b = zeros(n_time, 1);
     end
@@ -150,14 +150,14 @@ parfor b = 1:n_basins
     % Abstraction handling
     if ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
         gw_b = GW_basin(:, b);
-        gw_b = deseasonalize(gw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
+        gw_b = deseasonalize(gw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
     else
         gw_b = zeros(n_time, 1);
     end
     
     if ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
         sw_b = SW_basin(:, b);
-        sw_b = deseasonalize(sw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2008 baseline)
+        sw_b = deseasonalize(sw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
     else
         sw_b = zeros(n_time, 1);
     end
