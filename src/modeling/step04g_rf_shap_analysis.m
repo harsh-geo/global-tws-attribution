@@ -100,23 +100,22 @@ parfor i = 1:n_targets
     rf_anthro = TreeBagger(500, X_ant_val, y_val, ...
         'Method', 'regression', 'MinLeafSize', 5, 'NumPredictorsToSample', 1);
     
-    % Compute SHAP values using MATLAB's shapley explainer
-    % Note: shapley requires a prediction function and background data. 
-    % We use the valid training data as the background.
     predict_fcn = @(X) predict(rf_anthro, X);
     
     try
-        % For speed, use a subset or the whole valid dataset if small
-        explainer = shapley(predict_fcn, X_ant_val, 'QueryPoint', X_ant_val);
-        shap_vals_table = explainer.ShapleyValues;
+        explainer = shapley(predict_fcn, X_ant_val, 'QueryPoints', X_ant_val);
+        shap_vals_table = explainer.Shapley;
         
         % Store results
         res = struct();
         res.basin_id = b;
         if istable(shap_vals_table)
-            res.shap_values = shap_vals_table{:, :};
+            % shap_vals_table has features as rows and query points as columns.
+            % The first column is 'Index' (strings), so we drop it.
+            num_vals = double(shap_vals_table{:, 2:end}); 
+            res.shap_values = num_vals'; % Transpose to get N x features
         else
-            res.shap_values = shap_vals_table;
+            res.shap_values = shap_vals_table'; % Just in case it's numeric
         end
         res.valid_mask = valid_mask;
         res.X_ant_val = X_ant_val;

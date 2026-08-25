@@ -1,0 +1,15 @@
+Basin 51:
+  class: string
+  size: 5 214
+Basin 39:
+  class: string
+  size: 5 214
+Basin 42:
+  class: string
+  size: 5 214
+Basin 13:
+  class: string
+  size: 5 214
+Basin 40:
+  class: string
+  size: 5 214

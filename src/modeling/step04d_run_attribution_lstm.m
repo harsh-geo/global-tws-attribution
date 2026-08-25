@@ -206,9 +206,9 @@ parfor b = 1:n_basins
     TWSC_pred_anthro_lower(:, b) = y_pred_ant - 1.96 * y_stdev_total;
     
     %% Feature Permutation Importance Scores
-    feat_imp_b = zeros(1, 7);
+    feat_imp_b = zeros(1, 5);
     baseline_mse = mean((twsc_target - y_pred_ant).^2);
-    for f = 1:7
+    for f = 1:5
         X_shuffled = X_anthro;
         X_shuffled(:, f) = X_shuffled(randperm(n_time), f);
         XTrainShuffled = {X_shuffled'};
@@ -227,7 +227,7 @@ parfor b = 1:n_basins
         shap_vals_table = explainer.ShapleyValues;
         shap_matrix = shap_vals_table{:, :};
         
-        shap_b = nan(n_time, 7);
+        shap_b = nan(n_time, 5);
         shap_b(:, :) = shap_matrix;
         shap_values(:, b, :) = shap_b;
     catch
