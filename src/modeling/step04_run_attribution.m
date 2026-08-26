@@ -227,22 +227,22 @@ parfor b = 1:n_basins
 
     % Feature Permutation Importance Scores
     feature_importance(b, :) = rf_anthro.OOBPermutedPredictorDeltaError;
-    
+
     % --- Re-integration to TWS ---
     idx_start = find(~isnan(TWS(:, b)), 1);
     if ~isempty(idx_start)
         temp_nat = twsc_nat_b; temp_nat(isnan(temp_nat)) = 0;
         temp_ant = twsc_anthro_b; temp_ant(isnan(temp_ant)) = 0;
-        
+
         tws_pred_nat = nan(n_time, 1);
         tws_pred_ant = nan(n_time, 1);
-        
+
         tws_pred_nat(idx_start:end) = TWS(idx_start, b) + cumsum(temp_nat(idx_start:end));
         tws_pred_ant(idx_start:end) = TWS(idx_start, b) + cumsum(temp_ant(idx_start:end));
-        
+
         TWS_pred_nat_all(:, b) = tws_pred_nat;
         TWS_pred_anthro_all(:, b) = tws_pred_ant;
-        
+
         valid_tws = ~isnan(TWS(:, b)) & ~isnan(tws_pred_nat) & ~isnan(tws_pred_ant);
         if sum(valid_tws) > 30
             ss_tot_tws = sum((TWS(valid_tws, b) - mean(TWS(valid_tws, b))).^2);
@@ -292,7 +292,7 @@ if any(~valid_idx)
 end
 
 % Perform STL decomposition (Period = 12 for monthly data)
-[LT, ST, R] = trenddecomp(x_filled, 'stl', 12);
+[LT, ~, R] = trenddecomp(x_filled, 'stl', 12);
 
 % Deseasonalized data is Trend (LT) + Residual (R)
 x_deseas_temp = LT + R;
@@ -302,5 +302,5 @@ baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
 x_deseason = x_deseas_temp - baseline_mean;
 
 % Restore NaNs from original data
-    x_deseason(~valid_idx) = NaN;
+x_deseason(~valid_idx) = NaN;
 end
