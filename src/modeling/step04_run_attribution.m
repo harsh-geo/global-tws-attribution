@@ -52,9 +52,9 @@ end
 TWS = TWS_reconstructed;
 
 if ~exist('P_basin', 'var') || isempty(P_basin) || ...
-   ~exist('ET_basin', 'var') || isempty(ET_basin) || ...
-   ~exist('GW_basin', 'var') || isempty(GW_basin) || ...
-   ~exist('SW_basin', 'var') || isempty(SW_basin)
+        ~exist('ET_basin', 'var') || isempty(ET_basin) || ...
+        ~exist('GW_basin', 'var') || isempty(GW_basin) || ...
+        ~exist('SW_basin', 'var') || isempty(SW_basin)
     ts_file = fullfile(processed_dir, 'basin_time_series.mat');
     if exist(ts_file, 'file')
         fprintf('Loading basin time-series from %s...\n', ts_file);
@@ -84,13 +84,13 @@ TWSC_obs = nan(n_time, n_basins);
 dt = 1.0; % Monthly time-step unit
 for b = 1:n_basins
     tws_b = TWS(:, b);
-    
+
     % Centered finite differences for interior points (t = 2..N-1)
     TWSC_obs(2:end-1, b) = (tws_b(3:end) - tws_b(1:end-2)) / (2 * dt);
-    
+
     % Forward difference for start point (t = 1)
     TWSC_obs(1, b) = (tws_b(2) - tws_b(1)) / dt;
-    
+
     % Backward difference for end point (t = N)
     TWSC_obs(end, b) = (tws_b(end) - tws_b(end-1)) / dt;
 end
@@ -132,13 +132,13 @@ fprintf('\nRunning Twin RF Attribution Models (Anomalies 2004-2009 baseline) in 
 parfor b = 1:n_basins
     twsc_target = TWSC_obs(:, b);
     twsc_target = deseasonalize(twsc_target, target_dates, baseline_idx);
-    
+
     p_b  = P_basin(:, b);
     p_b  = deseasonalize(p_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
-    
+
     et_b = ET_basin(:, b);
     et_b = deseasonalize(et_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
-    
+
     % Runoff handling
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
         q_b = Q_basin(:, b);
@@ -146,7 +146,7 @@ parfor b = 1:n_basins
     else
         q_b = zeros(n_time, 1);
     end
-    
+
     % Abstraction handling
     if ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
         gw_b = GW_basin(:, b);
@@ -154,52 +154,52 @@ parfor b = 1:n_basins
     else
         gw_b = zeros(n_time, 1);
     end
-    
+
     if ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
         sw_b = SW_basin(:, b);
         sw_b = deseasonalize(sw_b, target_dates, baseline_idx); % Deseasonalised Anomaly (2004-2009 baseline)
     else
         sw_b = zeros(n_time, 1);
     end
-    
+
     % Temporary output vectors for this basin
     twsc_nat_b    = nan(n_time, 1);
     twsc_anthro_b = nan(n_time, 1);
-    
+
     % Feature matrices
     % Model 1 (Natural): P_anom, ET_anom, Q_anom
     X_nat = [p_b, et_b, q_b];
-    
+
     % Model 2 (Anthropogenic): P_anom, ET_anom, Q_anom, GW_abs_anom, SW_abs_anom
     X_anthro = [p_b, et_b, q_b, gw_b, sw_b];
-    
+
     % Valid sample mask
     valid_mask = ~isnan(twsc_target) & ~any(isnan(X_anthro), 2);
     if sum(valid_mask) < 30
         continue;
     end
-    
+
     y_val      = twsc_target(valid_mask);
     X_nat_val  = X_nat(valid_mask, :);
     X_ant_val  = X_anthro(valid_mask, :);
-    
+
     %% --- Train Model 1 (M_nat) ---
     rf_nat = TreeBagger(n_trees, X_nat_val, y_val, ...
         'Method', 'regression', ...
         'OOBPrediction', 'on', ...
         'MinLeafSize', min_leaf_size, ...
         'NumPredictorsToSample', n_vars_sample_nat);
-    
+
     y_oob_nat = oobPredict(rf_nat);
     res_nat   = y_val - y_oob_nat;
     ss_tot    = sum((y_val - mean(y_val, 'omitnan')).^2, 'omitnan');
-    
+
     R2_nat(b)   = 1 - (sum(res_nat.^2, 'omitnan') / ss_tot);
     RMSE_nat(b) = sqrt(mean(res_nat.^2, 'omitnan'));
-    
+
     twsc_nat_b(valid_mask) = y_oob_nat;
     TWSC_pred_nat(:, b)    = twsc_nat_b;
-    
+
     %% --- Train Model 2 (M_anthro) ---
     rf_anthro = TreeBagger(n_trees, X_ant_val, y_val, ...
         'Method', 'regression', ...
@@ -207,19 +207,19 @@ parfor b = 1:n_basins
         'OOBPredictorImportance', 'on', ...
         'MinLeafSize', min_leaf_size, ...
         'NumPredictorsToSample', n_vars_sample_ant);
-    
+
     y_oob_ant = oobPredict(rf_anthro);
     res_ant   = y_val - y_oob_ant;
-    
+
     R2_anthro(b)   = 1 - (sum(res_ant.^2, 'omitnan') / ss_tot);
     RMSE_anthro(b) = sqrt(mean(res_ant.^2, 'omitnan'));
-    
+
     twsc_anthro_b(valid_mask) = y_oob_ant;
     TWSC_pred_anthro(:, b)    = twsc_anthro_b;
-    
+
     % Variance Explained Gain: Delta R^2
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
-    
+
     % Feature Permutation Importance Scores
     feature_importance(b, :) = rf_anthro.OOBPermutedPredictorDeltaError;
 end
@@ -238,7 +238,10 @@ fprintf('=== STEP 4 Complete: Twin Model Attribution (Anomalies) Completed & Sav
 
 %% Helper Function for Deseasonalization with Baseline
 function x_deseason = deseasonalize(x, dates, baseline_idx)
-    x_deseason = nan(size(x));
+x_deseason = nan(size(x));
+valid_idx = ~isnan(x);
+
+if sum(valid_idx) < 24 % STL requires sufficient data points
     months = month(dates);
     for m = 1:12
         idx_m = (months == m);
@@ -250,4 +253,25 @@ function x_deseason = deseasonalize(x, dates, baseline_idx)
         end
         x_deseason(idx_m) = x(idx_m) - monthly_mean;
     end
+    return;
+end
+
+% Interpolate NaNs temporarily for STL
+x_filled = x;
+if any(~valid_idx)
+    x_filled = fillmissing(x, 'linear');
+end
+
+% Perform STL decomposition (Period = 12 for monthly data)
+[LT, ST, R] = trenddecomp(x_filled, 'stl', 12);
+
+% Deseasonalized data is Trend (LT) + Residual (R)
+x_deseas_temp = LT + R;
+
+% Center the anomaly relative to the 2004-2009 baseline period
+baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
+x_deseason = x_deseas_temp - baseline_mean;
+
+% Restore NaNs from original data
+    x_deseason(~valid_idx) = NaN;
 end

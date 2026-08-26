@@ -77,13 +77,46 @@ else
     ];
 end
 
-% 3. Sort data by Delta_R2 descending
-[sorted_delta_full, sort_idx] = sort(Delta_R2, 'descend');
+% 3. Load trend slope and compute volumetric loss to sort basins
+vars_trend = load(trend_mat, 'tws_trend_slope');
+tws_trend_slope = vars_trend.tws_trend_slope;
+
+basin_map_mat = fullfile(proc_dir, 'basin_map.mat');
+if ~exist(basin_map_mat, 'file')
+    basin_map_mat = fullfile(project_root, 'data', 'raw', 'basin_map.mat');
+end
+basin_data = load(basin_map_mat);
+if isfield(basin_data, 'basin_map')
+    basin_mask = double(basin_data.basin_map);
+elseif isfield(basin_data, 'basins')
+    basin_mask = double(basin_data.basins);
+else
+    fn = fieldnames(basin_data);
+    basin_mask = double(basin_data.(fn{1}));
+end
+
+[dim1, dim2] = size(basin_mask);
+if dim1 == 720 && dim2 == 360
+    basin_mask = basin_mask';
+end
+lat_vec = linspace(-89.75, 89.75, 360)';
+cell_area_map = repmat((111.32 * 0.5)^2 * cosd(lat_vec), 1, 720);
+
+basin_area = nan(1, n_basins);
+for b = 1:n_basins
+    basin_area(b) = sum(cell_area_map(basin_mask == b));
+end
+trend_km3_yr = tws_trend_slope .* 1e-5 .* basin_area;
+
+% Sort by volumetric loss (most negative trend first)
+[~, sort_idx] = sort(trend_km3_yr, 'ascend');
+
+sorted_delta_full = Delta_R2(sort_idx);
 sorted_names_full = basin_names(sort_idx);
 sorted_drivers_full = dom_driver_idx(sort_idx);
 
-% Subset to top 10 and bottom 5
-subset_idx = [1:10, (n_basins-4):n_basins];
+% Choose top 15 basins with most volumetric TWS loss
+subset_idx = 1:15;
 sorted_delta = sorted_delta_full(subset_idx);
 sorted_names = sorted_names_full(subset_idx);
 sorted_drivers = sorted_drivers_full(subset_idx);
@@ -116,12 +149,27 @@ xlim([0, n_subset+1]);
 ylim([min(sorted_delta)-0.05, max(sorted_delta)+0.1]);
 
 xticks(1:n_subset);
-xticklabels(sorted_names);
+short_driver_names_5 = {'P', 'ET', 'Q', 'GW', 'SW'};
+short_driver_names_7 = {'P', 'ET', 'Q', 'T', 'ONI', 'GW', 'SW'};
+labeled_names = cell(1, n_subset);
+for i = 1:n_subset
+    if isnan(sorted_drivers(i))
+        labeled_names{i} = sorted_names{i};
+    else
+        if n_features == 7
+            short_name = short_driver_names_7{sorted_drivers(i)};
+        else
+            short_name = short_driver_names_5{sorted_drivers(i)};
+        end
+        labeled_names{i} = sprintf('%s (%s)', sorted_names{i}, short_name);
+    end
+end
+xticklabels(labeled_names);
 xtickangle(45);
 set(gca, 'TickLabelInterpreter', 'none');
 
 ylabel('Variance Explained Gain (\DeltaR^2 = R^2_{anthro} - R^2_{nat})', 'FontSize', 12, 'FontWeight', 'bold');
-title('Improvement in TWS Modeling with Anthropogenic Predictors (Top 10 & Bottom 5 Basins)', 'FontSize', 13, 'FontWeight', 'bold');
+title('Improvement in TWS Modeling with Anthropogenic Predictors (Top 15 Basins by Volumetric Loss)', 'FontSize', 13, 'FontWeight', 'bold');
 grid on;
 box on;
 

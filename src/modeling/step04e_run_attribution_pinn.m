@@ -219,9 +219,9 @@ parfor b = 1:n_basins
     TWSC_pred_anthro_lower(:, b) = y_pred_ant - 1.96 * y_stdev_total;
     
     %% Feature Permutation Importance Scores
-    feat_imp_b = zeros(1, 7);
+    feat_imp_b = zeros(1, 5);
     baseline_mse = mean((twsc_target - y_pred_ant).^2);
-    for f = 1:7
+    for f = 1:5
         X_shuffled = X_anthro;
         X_shuffled(:, f) = X_shuffled(randperm(n_time), f);
         X_dl_shuf = dlarray(X_shuffled', 'CB');
@@ -239,7 +239,7 @@ parfor b = 1:n_basins
         shap_vals_table = explainer.ShapleyValues;
         shap_matrix = shap_vals_table{:, :};
         
-        shap_b = nan(n_time, 7);
+        shap_b = nan(n_time, 5);
         shap_b(:, :) = shap_matrix;
         shap_values(:, b, :) = shap_b;
     catch
@@ -287,8 +287,13 @@ function [loss, gradients, state] = modelLossAnt(dlnet, X, Y, lambda)
     P = X(1, :);
     ET = X(2, :);
     Q = X(3, :);
-    GW = X(6, :);
-    SW = X(7, :);
+    if size(X, 1) == 7
+        GW = X(6, :);
+        SW = X(7, :);
+    else
+        GW = X(4, :);
+        SW = X(5, :);
+    end
     TWSC_physics = P - ET - Q - GW - SW;
     lossPhysics = mse(YPred, TWSC_physics);
     
@@ -298,19 +303,34 @@ end
 
 function x_deseason = deseasonalize(x, dates)
     x_deseason = nan(size(x));
-    months = month(dates);
+    valid_idx = ~isnan(x);
     baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
     
-    for m = 1:12
-        idx_m = (months == m);
-        idx_baseline_m = idx_m & baseline_idx;
-        if sum(~isnan(x(idx_baseline_m))) < 3
-            monthly_mean = mean(x(idx_m), 'omitnan');
-        else
-            monthly_mean = mean(x(idx_baseline_m), 'omitnan');
+    if sum(valid_idx) < 24
+        months = month(dates);
+        for m = 1:12
+            idx_m = (months == m);
+            idx_baseline_m = idx_m & baseline_idx;
+            if sum(~isnan(x(idx_baseline_m))) < 3
+                monthly_mean = mean(x(idx_m), 'omitnan');
+            else
+                monthly_mean = mean(x(idx_baseline_m), 'omitnan');
+            end
+            x_deseason(idx_m) = x(idx_m) - monthly_mean;
         end
-        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+        return;
     end
+    
+    x_filled = x;
+    if any(~valid_idx)
+        x_filled = fillmissing(x, 'linear');
+    end
+    
+    [LT, ST, R] = trenddecomp(x_filled, 'stl', 12);
+    x_deseas_temp = LT + R;
+    baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
+    x_deseason = x_deseas_temp - baseline_mean;
+    x_deseason(~valid_idx) = NaN;
 end
 
 function Y = pinnPredictWrapper(dlnet, X)

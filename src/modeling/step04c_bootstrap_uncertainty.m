@@ -339,22 +339,35 @@ fprintf('=== STEP 4c Complete: Block-Bootstrapping Uncertainty Quantification Sa
 
 %% Helper Deseasonalization Function with Baseline
 function x_deseason = deseasonalize_baseline(x, dates)
-x_deseason = nan(size(x));
-months = month(dates);
-baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
-
-for m = 1:12
-    idx_m = (months == m);
-    idx_baseline_m = idx_m & baseline_idx;
-
-    if sum(~isnan(x(idx_baseline_m))) < 3
-        monthly_mean = mean(x(idx_m), 'omitnan');
-    else
-        monthly_mean = mean(x(idx_baseline_m), 'omitnan');
+    x_deseason = nan(size(x));
+    valid_idx = ~isnan(x);
+    baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
+    
+    if sum(valid_idx) < 24
+        months = month(dates);
+        for m = 1:12
+            idx_m = (months == m);
+            idx_baseline_m = idx_m & baseline_idx;
+            if sum(~isnan(x(idx_baseline_m))) < 3
+                monthly_mean = mean(x(idx_m), 'omitnan');
+            else
+                monthly_mean = mean(x(idx_baseline_m), 'omitnan');
+            end
+            x_deseason(idx_m) = x(idx_m) - monthly_mean;
+        end
+        return;
     end
-
-    x_deseason(idx_m) = x(idx_m) - monthly_mean;
-end
+    
+    x_filled = x;
+    if any(~valid_idx)
+        x_filled = fillmissing(x, 'linear');
+    end
+    
+    [LT, ST, R] = trenddecomp(x_filled, 'stl', 12);
+    x_deseas_temp = LT + R;
+    baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
+    x_deseason = x_deseas_temp - baseline_mean;
+    x_deseason(~valid_idx) = NaN;
 end
 
 %% Helper Progress Function

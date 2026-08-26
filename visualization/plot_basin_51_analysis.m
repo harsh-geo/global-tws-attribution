@@ -23,8 +23,18 @@ if ~exist(trend_mat, 'file')
 end
 
 fprintf('Loading data...\n');
-load(trend_mat, 'TWS_basin', 'P_basin', 'ET_basin', 'Q_basin', ...
-    'TWS_reconstructed', 'grace_dates', 'oob_r2', 'oob_rmse');
+load(trend_mat, 'TWS_reconstructed', 'grace_dates');
+
+ts_mat = fullfile(project_root, 'data', 'processed', 'basin_time_series.mat');
+load(ts_mat, 'TWS_basin', 'P_basin', 'ET_basin', 'Q_basin');
+
+grace_mat = fullfile(project_root, 'data', 'processed', 'grace_reconstructed.mat');
+if exist(grace_mat, 'file')
+    load(grace_mat, 'oob_r2', 'oob_rmse');
+else
+    oob_r2 = nan(1, 103);
+    oob_rmse = nan(1, 103);
+end
 
 basin_idx = 51;
 

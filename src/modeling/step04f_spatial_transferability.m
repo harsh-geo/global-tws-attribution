@@ -146,15 +146,31 @@ fprintf('=== STEP 4f Complete ===\n\n');
 %% Helper Function
 function x_deseason = deseasonalize(x, dates, baseline_idx)
     x_deseason = nan(size(x));
-    months = month(dates);
-    for m = 1:12
-        idx_m = (months == m);
-        idx_base = idx_m & baseline_idx;
-        if any(idx_base) && ~all(isnan(x(idx_base)))
-            monthly_mean = mean(x(idx_base), 'omitnan');
-        else
-            monthly_mean = mean(x(idx_m), 'omitnan');
+    valid_idx = ~isnan(x);
+    
+    if sum(valid_idx) < 24
+        months = month(dates);
+        for m = 1:12
+            idx_m = (months == m);
+            idx_base = idx_m & baseline_idx;
+            if any(idx_base) && ~all(isnan(x(idx_base)))
+                monthly_mean = mean(x(idx_base), 'omitnan');
+            else
+                monthly_mean = mean(x(idx_m), 'omitnan');
+            end
+            x_deseason(idx_m) = x(idx_m) - monthly_mean;
         end
-        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+        return;
     end
+    
+    x_filled = x;
+    if any(~valid_idx)
+        x_filled = fillmissing(x, 'linear');
+    end
+    
+    [LT, ST, R] = trenddecomp(x_filled, 'stl', 12);
+    x_deseas_temp = LT + R;
+    baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
+    x_deseason = x_deseas_temp - baseline_mean;
+    x_deseason(~valid_idx) = NaN;
 end

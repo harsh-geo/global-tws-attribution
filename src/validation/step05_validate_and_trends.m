@@ -72,6 +72,8 @@ if ~exist('TWS_reconstructed', 'var') || isempty(TWS_reconstructed)
     if exist(tws_mat, 'file')
         tws_data = load(tws_mat);
         TWS_reconstructed = tws_data.TWS_reconstructed;
+        if isfield(tws_data, 'oob_r2'), oob_r2 = tws_data.oob_r2; end
+        if isfield(tws_data, 'oob_rmse'), oob_rmse = tws_data.oob_rmse; end
     end
 end
 if exist('TWS_reconstructed', 'var') && ~isempty(TWS_reconstructed)
