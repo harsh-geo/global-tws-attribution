@@ -41,15 +41,33 @@ lstm_data = load(lstm_mat);
 R2_nat_rf        = rf_data.R2_TWS_nat(:);
 R2_anthro_rf     = rf_data.R2_TWS_anthro(:);
 Delta_R2_rf      = rf_data.R2_TWS_anthro(:) - rf_data.R2_TWS_nat(:);
-feat_imp_rf      = rf_data.feature_importance; % [103 x 5]
 TWS_pred_ant_rf  = rf_data.TWS_pred_anthro_all;
+
+% Load RF SHAP values
+rf_shap_mat = fullfile(table_dir, 'shap_results.mat');
+if exist(rf_shap_mat, 'file')
+    rf_shap_data = load(rf_shap_mat);
+    shap_results_rf = rf_shap_data.shap_results;
+    feat_imp_rf = nan(103, 5);
+    for i = 1:length(shap_results_rf)
+        if ~isempty(shap_results_rf{i})
+            % Mean absolute SHAP per feature for this basin
+            feat_imp_rf(i, :) = mean(abs(shap_results_rf{i}.shap_values), 1, 'omitnan');
+        end
+    end
+else
+    feat_imp_rf = nan(103, 5); % Placeholder if step04g hasn't been run yet
+end
 
 % Extract LSTM metrics
 R2_nat_lstm        = lstm_data.R2_TWS_nat(:);
 R2_anthro_lstm     = lstm_data.R2_TWS_anthro(:);
 Delta_R2_lstm      = lstm_data.R2_TWS_anthro(:) - lstm_data.R2_TWS_nat(:);
-feat_imp_lstm      = lstm_data.feature_importance; % [103 x 5]
 TWS_pred_ant_lstm  = lstm_data.TWS_pred_anthro_all;
+
+% Compute LSTM SHAP mean absolute importance
+shap_values_lstm = lstm_data.shap_values; % [n_time x 103 x 5]
+feat_imp_lstm = squeeze(mean(abs(shap_values_lstm), 1, 'omitnan')); % [103 x 5]
 
 % Load observed TWS for the timeseries plot
 ts_mat = fullfile(project_root, 'data', 'processed', 'grace_reconstructed.mat');
@@ -184,9 +202,9 @@ bar_data = [mean_imp_rf(:), mean_imp_lstm(:)];
 
 hb = bar(bar_data, 'grouped');
 hb(1).FaceColor = c_rf_ant;
-hb(1).DisplayName = 'Random Forest (OOB Permutation)';
+hb(1).DisplayName = 'Random Forest (SHAP Values)';
 hb(2).FaceColor = c_lstm_ant;
-hb(2).DisplayName = 'LSTM (Sequence Permutation)';
+hb(2).DisplayName = 'LSTM (SHAP Values)';
 
 % Add Error Bars
 ngroups = size(bar_data, 1);

@@ -109,41 +109,41 @@ numHiddenUnits2 = 32;
 maxEpochs = 150;
 
 parfor b = 1:n_basins
-    twsc_b = deseasonalize(TWSC_obs(:, b), target_dates);
+    [twsc_b, ST_twsc, base_twsc] = deseasonalize(TWSC_obs(:, b), target_dates);
     p_b    = deseasonalize(P_basin(:, b), target_dates);
     et_b   = deseasonalize(ET_basin(:, b), target_dates);
-    
+
     if ~isempty(Q_basin) && ~all(isnan(Q_basin(:, b)))
         q_b = deseasonalize(Q_basin(:, b), target_dates);
     else
         q_b = zeros(n_time, 1);
     end
-    
+
     if ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
         gw_b = deseasonalize(GW_basin(:, b), target_dates);
     else
         gw_b = zeros(n_time, 1);
     end
-    
+
     if ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
         sw_b = deseasonalize(SW_basin(:, b), target_dates);
     else
         sw_b = zeros(n_time, 1);
     end
-    
+
     twsc_target = twsc_b;
-    
+
     % Fill missing just in case
     X_nat = fillmissing([p_b, et_b, q_b], 'linear');
     X_anthro = fillmissing([p_b, et_b, q_b, gw_b, sw_b], 'linear');
     twsc_target = fillmissing(twsc_target, 'linear');
-    
+
     % Prepare for LSTM: inputs must be Features x TimeSteps cell arrays
     % We train on the entire sequence as a single observation
     XTrainNat = {X_nat'};
     XTrainAnt = {X_anthro'};
     YTrain = {twsc_target'};
-    
+
     %% --- Train Model 1 (M_nat) ---
     layers_nat = [
         sequenceInputLayer(size(X_nat, 2))
@@ -151,7 +151,7 @@ parfor b = 1:n_basins
         lstmLayer(numHiddenUnits2, 'OutputMode', 'sequence')
         fullyConnectedLayer(1)
         regressionLayer];
-        
+
     options = trainingOptions('adam', ...
         'MaxEpochs', maxEpochs, ...
         'GradientThreshold', 1, ...
@@ -161,7 +161,7 @@ parfor b = 1:n_basins
         'LearnRateDropFactor', 0.2, ...
         'Verbose', false, ...
         'Plots', 'none');
-        
+
     % Ensemble for uncertainty
     num_ensemble = 3; % Small ensemble for computational feasibility
     y_preds_nat_ens = zeros(n_time, num_ensemble);
@@ -172,14 +172,14 @@ parfor b = 1:n_basins
     end
     y_pred_nat = mean(y_preds_nat_ens, 2);
     y_stdev_nat = std(y_preds_nat_ens, 0, 2);
-    
+
     res_nat = twsc_target - y_pred_nat;
     ss_tot = sum((twsc_target - mean(twsc_target)).^2);
-    
+
     R2_nat(b)   = 1 - (sum(res_nat.^2) / ss_tot);
     RMSE_nat(b) = sqrt(mean(res_nat.^2));
     TWSC_pred_nat(:, b) = y_pred_nat;
-    
+
     %% --- Train Model 2 (M_anthro) ---
     layers_ant = [
         sequenceInputLayer(size(X_anthro, 2))
@@ -187,7 +187,7 @@ parfor b = 1:n_basins
         lstmLayer(numHiddenUnits2, 'OutputMode', 'sequence')
         fullyConnectedLayer(1)
         regressionLayer];
-        
+
     y_preds_ant_ens = zeros(n_time, num_ensemble);
     for e = 1:num_ensemble
         net_ant_temp = trainNetwork(XTrainAnt, YTrain, layers_ant, options);
@@ -199,18 +199,18 @@ parfor b = 1:n_basins
     end
     y_pred_ant = mean(y_preds_ant_ens, 2);
     y_stdev_ant = std(y_preds_ant_ens, 0, 2);
-    
+
     res_ant = twsc_target - y_pred_ant;
-    
+
     R2_anthro(b)   = 1 - (sum(res_ant.^2) / ss_tot);
     RMSE_anthro(b) = sqrt(mean(res_ant.^2));
     TWSC_pred_anthro(:, b) = y_pred_ant;
-    
+
     %% --- Compute Uncertainty (95% CI) ---
     y_stdev_total = sqrt(y_stdev_nat.^2 + y_stdev_ant.^2);
     TWSC_pred_anthro_upper(:, b) = y_pred_ant + 1.96 * y_stdev_total;
     TWSC_pred_anthro_lower(:, b) = y_pred_ant - 1.96 * y_stdev_total;
-    
+
     %% Feature Permutation Importance Scores
     feat_imp_b = zeros(1, 5);
     baseline_mse = mean((twsc_target - y_pred_ant).^2);
@@ -224,7 +224,7 @@ parfor b = 1:n_basins
         feat_imp_b(f) = shuffled_mse - baseline_mse; % Delta Error
     end
     feature_importance(b, :) = feat_imp_b;
-    
+
     %% SHAP Computation (Event-level attribution)
     try
         % Custom predict wrapper for shapley
@@ -232,32 +232,49 @@ parfor b = 1:n_basins
         explainer = shapley(customPredictFn, X_anthro);
         shap_vals_table = explainer.ShapleyValues;
         shap_matrix = shap_vals_table{:, :};
-        
+
         shap_b = nan(n_time, 5);
         shap_b(:, :) = shap_matrix;
         shap_values(:, b, :) = shap_b;
     catch
         % shapley might fail with custom sequence wrapper
     end
-    
+
     %% Metrics
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
-    
+
     %% --- Re-integration to TWS ---
+    % Reconstruct RAW TWSC by adding back seasonality and baseline mean
+    twsc_nat_raw = y_pred_nat + ST_twsc + base_twsc;
+    twsc_ant_raw = y_pred_ant + ST_twsc + base_twsc;
+    
     idx_start = find(~isnan(TWS(:, b)), 1);
     if ~isempty(idx_start)
-        temp_nat = y_pred_nat; temp_nat(isnan(temp_nat)) = 0;
-        temp_ant = y_pred_ant; temp_ant(isnan(temp_ant)) = 0;
+        % Fill isolated NaNs in raw TWSC if any exist so integration doesn't fail
+        twsc_nat_raw(isnan(twsc_nat_raw)) = 0;
+        twsc_ant_raw(isnan(twsc_ant_raw)) = 0;
         
-        tws_pred_nat = nan(n_time, 1);
-        tws_pred_ant = nan(n_time, 1);
+        n_valid = n_time - idx_start + 1;
+        A = zeros(n_valid, n_valid);
+        for i = 2:n_valid-1
+            A(i, i-1) = -0.5;
+            A(i, i+1) =  0.5;
+        end
+        A(1, 1) = 1; A(1, 2) = 0; % Initial condition
+        A(end, end-1) = -1; A(end, end) = 1; % Backward diff at end
         
-        tws_pred_nat(idx_start:end) = TWS(idx_start, b) + cumsum(temp_nat(idx_start:end));
-        tws_pred_ant(idx_start:end) = TWS(idx_start, b) + cumsum(temp_ant(idx_start:end));
+        B_nat = twsc_nat_raw(idx_start:end); B_nat(1) = TWS(idx_start, b);
+        B_ant = twsc_ant_raw(idx_start:end); B_ant(1) = TWS(idx_start, b);
+        
+        tws_pred_nat_sub = A \ B_nat;
+        tws_pred_ant_sub = A \ B_ant;
+        
+        tws_pred_nat = nan(n_time, 1); tws_pred_nat(idx_start:end) = tws_pred_nat_sub;
+        tws_pred_ant = nan(n_time, 1); tws_pred_ant(idx_start:end) = tws_pred_ant_sub;
         
         TWS_pred_nat_all(:, b) = tws_pred_nat;
         TWS_pred_anthro_all(:, b) = tws_pred_ant;
-        
+
         valid_tws = ~isnan(TWS(:, b)) & ~isnan(tws_pred_nat) & ~isnan(tws_pred_ant);
         if sum(valid_tws) > 30
             ss_tot_tws = sum((TWS(valid_tws, b) - mean(TWS(valid_tws, b))).^2);
@@ -282,42 +299,47 @@ save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ..
 fprintf('=== STEP 4d Complete: Twin LSTM Model Attribution Completed & Saved ===\n\n');
 
 %% Helper Function for Deseasonalization
-function x_deseason = deseasonalize(x, dates)
-    x_deseason = nan(size(x));
-    valid_idx = ~isnan(x);
-    baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
-    
-    if sum(valid_idx) < 24
-        months = month(dates);
-        for m = 1:12
-            idx_m = (months == m);
-            idx_baseline_m = idx_m & baseline_idx;
-            if sum(~isnan(x(idx_baseline_m))) < 3
-                monthly_mean = mean(x(idx_m), 'omitnan');
-            else
-                monthly_mean = mean(x(idx_baseline_m), 'omitnan');
-            end
-            x_deseason(idx_m) = x(idx_m) - monthly_mean;
+function [x_deseason, ST, baseline_mean] = deseasonalize(x, dates)
+x_deseason = nan(size(x));
+ST = zeros(size(x));
+baseline_mean = 0;
+
+valid_idx = ~isnan(x);
+baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
+
+if sum(valid_idx) < 24
+    months = month(dates);
+    for m = 1:12
+        idx_m = (months == m);
+        idx_baseline_m = idx_m & baseline_idx;
+        if sum(~isnan(x(idx_baseline_m))) < 3
+            monthly_mean = mean(x(idx_m), 'omitnan');
+        else
+            monthly_mean = mean(x(idx_baseline_m), 'omitnan');
         end
-        return;
+        x_deseason(idx_m) = x(idx_m) - monthly_mean;
+        ST(idx_m) = monthly_mean;
     end
-    
-    x_filled = x;
-    if any(~valid_idx)
-        x_filled = fillmissing(x, 'linear');
-    end
-    
-    [LT, ST, R] = trenddecomp(x_filled, 'stl', 12);
-    x_deseas_temp = LT + R;
-    baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
-    x_deseason = x_deseas_temp - baseline_mean;
-    x_deseason(~valid_idx) = NaN;
+    return;
+end
+
+x_filled = x;
+if any(~valid_idx)
+    x_filled = fillmissing(x, 'linear');
+end
+
+[LT, ST_out, R] = trenddecomp(x_filled, 'stl', 12);
+x_deseas_temp = LT + R;
+baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
+x_deseason = x_deseas_temp - baseline_mean;
+x_deseason(~valid_idx) = NaN;
+ST = ST_out;
 end
 
 function Y = lstmPredictWrapper(net, X)
-    % Wrapper for shapley to accept tabular data and convert to sequence cell
-    % If X is N x Features, return N x 1
-    X_cell = {X'};
-    Y_seq = predict(net, X_cell);
-    Y = Y_seq{1}';
+% Wrapper for shapley to accept tabular data and convert to sequence cell
+% If X is N x Features, return N x 1
+X_cell = {X'};
+Y_seq = predict(net, X_cell);
+Y = Y_seq{1}';
 end

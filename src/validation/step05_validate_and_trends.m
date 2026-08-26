@@ -116,10 +116,12 @@ TWSC_cv_anthro = nan(n_time, n_basins);
 NSE_nat     = nan(1, n_basins);
 KGE_nat     = nan(1, n_basins);
 RMSE_cv_nat = nan(1, n_basins);
+R2_cv_nat   = nan(1, n_basins);
 
 NSE_anthro     = nan(1, n_basins);
 KGE_anthro     = nan(1, n_basins);
 RMSE_cv_anthro = nan(1, n_basins);
+R2_cv_anthro   = nan(1, n_basins);
 
 num_cores = feature('numcores');
 if isempty(gcp('nocreate'))
@@ -219,19 +221,23 @@ parfor b = 1:n_basins
         NSE_nat(b)     = compute_nse(y_v, y_nat_v);
         KGE_nat(b)     = compute_kge(y_v, y_nat_v);
         RMSE_cv_nat(b) = sqrt(mean((y_v - y_nat_v).^2, 'omitnan'));
+        r_nat          = corr(y_v, y_nat_v, 'rows', 'complete');
+        R2_cv_nat(b)   = r_nat^2;
         
         % Anthropogenic Model Metrics
         NSE_anthro(b)     = compute_nse(y_v, y_ant_v);
         KGE_anthro(b)     = compute_kge(y_v, y_ant_v);
         RMSE_cv_anthro(b) = sqrt(mean((y_v - y_ant_v).^2, 'omitnan'));
+        r_ant             = corr(y_v, y_ant_v, 'rows', 'complete');
+        R2_cv_anthro(b)   = r_ant^2;
     end
 end
 
 fprintf('Block CV complete.\n');
-fprintf('Mean Natural Model CV  -> NSE: %.3f | KGE: %.3f | RMSE: %.3f cm/mo\n', ...
-    mean(NSE_nat, 'omitnan'), mean(KGE_nat, 'omitnan'), mean(RMSE_cv_nat, 'omitnan'));
-fprintf('Mean Anthro Model CV   -> NSE: %.3f | KGE: %.3f | RMSE: %.3f cm/mo\n', ...
-    mean(NSE_anthro, 'omitnan'), mean(KGE_anthro, 'omitnan'), mean(RMSE_cv_anthro, 'omitnan'));
+fprintf('Mean Natural Model CV  -> NSE: %.3f | KGE: %.3f | RMSE: %.3f cm/mo | R2: %.3f\n', ...
+    mean(NSE_nat, 'omitnan'), mean(KGE_nat, 'omitnan'), mean(RMSE_cv_nat, 'omitnan'), mean(R2_cv_nat, 'omitnan'));
+fprintf('Mean Anthro Model CV   -> NSE: %.3f | KGE: %.3f | RMSE: %.3f cm/mo | R2: %.3f\n', ...
+    mean(NSE_anthro, 'omitnan'), mean(KGE_anthro, 'omitnan'), mean(RMSE_cv_anthro, 'omitnan'), mean(R2_cv_anthro, 'omitnan'));
 
 %% =========================================================================
 %% 2. Theil-Sen Trend Slope & Hamed-Rao Modified Mann-Kendall Test
@@ -277,7 +283,8 @@ fprintf('Saving final master pipeline results matrix to %s...\n', out_mat);
 
 % Compile all available final pipeline metrics and series into single final MAT file
 vars_to_save = {'NSE_nat', 'NSE_anthro', 'KGE_nat', 'KGE_anthro', ...
-                'RMSE_cv_nat', 'RMSE_cv_anthro', 'TWSC_cv_nat', 'TWSC_cv_anthro', ...
+                'RMSE_cv_nat', 'RMSE_cv_anthro', 'R2_cv_nat', 'R2_cv_anthro', ...
+                'TWSC_cv_nat', 'TWSC_cv_anthro', ...
                 'tws_trend_slope', 'tws_trend_ci_lower', 'tws_trend_ci_upper', 'mk_p_value', 'mk_h_sig'};
 
 optional_vars = {'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
@@ -305,9 +312,11 @@ NSE_Natural = NSE_nat';
 NSE_Anthro  = NSE_anthro';
 KGE_Natural = KGE_nat';
 KGE_Anthro  = KGE_anthro';
+R2_Natural  = R2_cv_nat';
+R2_Anthro   = R2_cv_anthro';
 
 summary_tbl = table(Basin_ID, Trend_cm_yr, Trend_CI_Lower, Trend_CI_Upper, MK_p_value, Is_Significant, ...
-                    NSE_Natural, NSE_Anthro, KGE_Natural, KGE_Anthro);
+                    NSE_Natural, NSE_Anthro, KGE_Natural, KGE_Anthro, R2_Natural, R2_Anthro);
 writetable(summary_tbl, csv_file);
 fprintf('Exported summary table to %s\n', csv_file);
 fprintf('=== STEP 5 Complete: Validation & Trend Analysis Saved ===\n\n');

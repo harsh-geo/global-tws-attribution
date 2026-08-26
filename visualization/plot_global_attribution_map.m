@@ -19,18 +19,32 @@ table_dir = fullfile(project_root, 'outputs', 'tables');
 out_dir = fullfile(project_root, 'outputs', 'figures');
 if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
-trend_mat = fullfile(table_dir, 'validation_and_trends.mat');
-attr_mat  = fullfile(table_dir, 'attribution_results.mat');
-
-if exist(trend_mat, 'file')
-    load(trend_mat, 'feature_importance');
-elseif exist(attr_mat, 'file')
-    attr_data = load(attr_mat, 'feature_importance');
-    if isfield(attr_data, 'feature_importance') && ~isempty(attr_data.feature_importance)
-        feature_importance = attr_data.feature_importance;
+rf_shap_mat = fullfile(table_dir, 'shap_results.mat');
+if exist(rf_shap_mat, 'file')
+    shap_data = load(rf_shap_mat);
+    shap_res = shap_data.shap_results;
+    n_basins = 103;
+    feature_importance = nan(n_basins, 5); % Fallback to 5 features
+    for i = 1:length(shap_res)
+        if ~isempty(shap_res{i})
+            feature_importance(i, :) = mean(abs(shap_res{i}.shap_values), 1, 'omitnan');
+        end
     end
 else
-    error('Neither validation_and_trends.mat nor attribution_results.mat found.');
+    % Fallback to OOB if SHAP not yet computed for all basins
+    trend_mat = fullfile(table_dir, 'validation_and_trends.mat');
+    attr_mat  = fullfile(table_dir, 'attribution_results.mat');
+
+    if exist(trend_mat, 'file')
+        load(trend_mat, 'feature_importance');
+    elseif exist(attr_mat, 'file')
+        attr_data = load(attr_mat, 'feature_importance');
+        if isfield(attr_data, 'feature_importance') && ~isempty(attr_data.feature_importance)
+            feature_importance = attr_data.feature_importance;
+        end
+    else
+        error('Neither SHAP results nor OOB results found.');
+    end
 end
 
 % Ensure feature_importance is [n_basins x n_features]
