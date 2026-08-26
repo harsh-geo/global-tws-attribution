@@ -38,23 +38,26 @@ rf_data   = load(rf_mat);
 lstm_data = load(lstm_mat);
 
 % Extract RF metrics
-R2_nat_rf        = rf_data.R2_nat(:);
-R2_anthro_rf     = rf_data.R2_anthro(:);
-Delta_R2_rf      = rf_data.Delta_R2(:);
+R2_nat_rf        = rf_data.R2_TWS_nat(:);
+R2_anthro_rf     = rf_data.R2_TWS_anthro(:);
+Delta_R2_rf      = rf_data.R2_TWS_anthro(:) - rf_data.R2_TWS_nat(:);
 feat_imp_rf      = rf_data.feature_importance; % [103 x 5]
-TWSC_obs         = rf_data.TWSC_obs;
-TWSC_pred_nat_rf = rf_data.TWSC_pred_nat;
-TWSC_pred_ant_rf = rf_data.TWSC_pred_anthro;
+TWS_pred_ant_rf  = rf_data.TWS_pred_anthro_all;
 
 % Extract LSTM metrics
-R2_nat_lstm        = lstm_data.R2_nat(:);
-R2_anthro_lstm     = lstm_data.R2_anthro(:);
-Delta_R2_lstm      = lstm_data.Delta_R2(:);
+R2_nat_lstm        = lstm_data.R2_TWS_nat(:);
+R2_anthro_lstm     = lstm_data.R2_TWS_anthro(:);
+Delta_R2_lstm      = lstm_data.R2_TWS_anthro(:) - lstm_data.R2_TWS_nat(:);
 feat_imp_lstm      = lstm_data.feature_importance; % [103 x 5]
-TWSC_pred_ant_lstm = lstm_data.TWSC_pred_anthro;
+TWS_pred_ant_lstm  = lstm_data.TWS_pred_anthro_all;
 
-n_time   = size(TWSC_obs, 1);
-n_basins = size(TWSC_obs, 2);
+% Load observed TWS for the timeseries plot
+ts_mat = fullfile(project_root, 'data', 'processed', 'grace_reconstructed.mat');
+ts_data = load(ts_mat);
+TWS_obs = ts_data.TWS_reconstructed;
+
+n_time   = size(TWS_obs, 1);
+n_basins = size(TWS_obs, 2);
 dates    = datetime(2002, 4, 1) + calmonths(0:n_time-1);
 
 %% 2. Setup Figure Layout & Styling
@@ -211,12 +214,12 @@ subplot(2, 2, 4);
 hold on; grid on; box on;
 
 b_hot = 51; % Ganges-Brahmaputra
-y_obs_b     = TWSC_obs(:, b_hot);
-y_rf_b      = TWSC_pred_ant_rf(:, b_hot);
-y_lstm_b    = TWSC_pred_ant_lstm(:, b_hot);
+y_obs_b     = TWS_obs(:, b_hot);
+y_rf_b      = TWS_pred_ant_rf(:, b_hot);
+y_lstm_b    = TWS_pred_ant_lstm(:, b_hot);
 
-% Plot Observed TWSC (deseasonalized)
-plot(dates, y_obs_b, 'k-', 'LineWidth', 1.5, 'DisplayName', 'Observed TWSC (GRACE)');
+% Plot Observed TWS
+plot(dates, y_obs_b, 'k-', 'LineWidth', 1.5, 'DisplayName', 'Observed TWS (GRACE)');
 
 % Plot RF Prediction
 plot(dates, y_rf_b, 'Color', c_rf_ant, 'LineWidth', 1.4, 'LineStyle', '--', ...
@@ -235,8 +238,8 @@ patch([gap_start, gap_end, gap_end, gap_start], [-15, -15, 15, 15], ...
 
 ylim([min([y_obs_b; y_rf_b; y_lstm_b])*1.2, max([y_obs_b; y_rf_b; y_lstm_b])*1.2]);
 xlim([dates(1), dates(end)]);
-ylabel('Deseasonalized TWSC (cm/month)', 'FontSize', 11, 'FontWeight', 'bold');
-title(sprintf('(d) Hotspot Dynamic Reconstruction: Ganges-Brahmaputra (Basin 51)'), ...
+ylabel('TWS Anomaly (cm)', 'FontSize', 11, 'FontWeight', 'bold');
+title(sprintf('(d) Hotspot Integrated TWS Reconstruction: Ganges-Brahmaputra (Basin 51)'), ...
     'FontSize', 12, 'FontWeight', 'bold');
 legend('Location', 'southwest', 'FontSize', 8.5, 'NumColumns', 2);
 

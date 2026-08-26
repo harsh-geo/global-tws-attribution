@@ -29,18 +29,24 @@ lstm_mat = fullfile(table_dir, 'attribution_results_lstm.mat');
 rf_data   = load(rf_mat);
 lstm_data = load(lstm_mat);
 
-TWSC_obs         = rf_data.TWSC_obs;
-TWSC_pred_ant_rf = rf_data.TWSC_pred_anthro;
-R2_anthro_rf     = rf_data.R2_anthro;
-Delta_R2_rf      = rf_data.Delta_R2;
+TWS_pred_ant_rf = rf_data.TWS_pred_anthro_all;
+R2_anthro_rf     = rf_data.R2_TWS_anthro;
+Delta_R2_rf      = rf_data.R2_TWS_anthro - rf_data.R2_TWS_nat;
 
-TWSC_pred_ant_lstm   = lstm_data.TWSC_pred_anthro;
-TWSC_pred_lstm_upper = lstm_data.TWSC_pred_anthro_upper;
-TWSC_pred_lstm_lower = lstm_data.TWSC_pred_anthro_lower;
-R2_anthro_lstm       = lstm_data.R2_anthro;
-Delta_R2_lstm        = lstm_data.Delta_R2;
+TWS_pred_ant_lstm   = lstm_data.TWS_pred_anthro_all;
+R2_anthro_lstm       = lstm_data.R2_TWS_anthro;
+Delta_R2_lstm        = lstm_data.R2_TWS_anthro - lstm_data.R2_TWS_nat;
 
-n_time = size(TWSC_obs, 1);
+% Use TWSC bounds for CI but apply them to TWS conceptually, or just hide CI for simplicity in integrated view
+TWSC_pred_lstm_upper = []; 
+TWSC_pred_lstm_lower = [];
+
+% Load observed TWS for the timeseries plot
+ts_mat = fullfile(project_root, 'data', 'processed', 'grace_reconstructed.mat');
+ts_data = load(ts_mat);
+TWS_obs = ts_data.TWS_reconstructed;
+
+n_time = size(TWS_obs, 1);
 dates  = datetime(2002, 4, 1) + calmonths(0:n_time-1);
 
 %% 2. Setup Figure
@@ -68,9 +74,9 @@ for i = 1:4
     subplot(2, 2, i);
     hold on; grid on; box on;
     
-    y_obs  = TWSC_obs(:, b);
-    y_rf   = TWSC_pred_ant_rf(:, b);
-    y_lstm = TWSC_pred_ant_lstm(:, b);
+    y_obs  = TWS_obs(:, b);
+    y_rf   = TWS_pred_ant_rf(:, b);
+    y_lstm = TWS_pred_ant_lstm(:, b);
     
     % LSTM 95% Confidence Interval Envelope
     if ~isempty(TWSC_pred_lstm_upper)
@@ -99,7 +105,7 @@ for i = 1:4
     
     ylim(yl);
     xlim([dates(1), dates(end)]);
-    ylabel('TWSC (cm/month)', 'FontSize', 10.5, 'FontWeight', 'bold');
+    ylabel('Integrated TWS Anomaly (cm)', 'FontSize', 10.5, 'FontWeight', 'bold');
     title(sprintf('(%s) %s', char(96+i), titles{i}), 'FontSize', 11, 'FontWeight', 'bold');
     legend('Location', 'southwest', 'FontSize', 8, 'NumColumns', 2);
 end
