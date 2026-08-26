@@ -102,8 +102,13 @@ Delta_R2         = nan(1, n_basins);
 RMSE_nat         = nan(1, n_basins);
 RMSE_anthro      = nan(1, n_basins);
 
+R2_TWS_nat       = nan(1, n_basins);
+R2_TWS_anthro    = nan(1, n_basins);
+
 TWSC_pred_nat    = nan(n_time, n_basins);
 TWSC_pred_anthro = nan(n_time, n_basins);
+TWS_pred_nat_all = nan(n_time, n_basins);
+TWS_pred_anthro_all = nan(n_time, n_basins);
 
 % Feature Importance matrix: [103 basins x 5 features]
 % Features: 1:P, 2:ET, 3:Q, 4:GW_abs, 5:SW_abs
@@ -222,6 +227,29 @@ parfor b = 1:n_basins
 
     % Feature Permutation Importance Scores
     feature_importance(b, :) = rf_anthro.OOBPermutedPredictorDeltaError;
+    
+    % --- Re-integration to TWS ---
+    idx_start = find(~isnan(TWS(:, b)), 1);
+    if ~isempty(idx_start)
+        temp_nat = twsc_nat_b; temp_nat(isnan(temp_nat)) = 0;
+        temp_ant = twsc_anthro_b; temp_ant(isnan(temp_ant)) = 0;
+        
+        tws_pred_nat = nan(n_time, 1);
+        tws_pred_ant = nan(n_time, 1);
+        
+        tws_pred_nat(idx_start:end) = TWS(idx_start, b) + cumsum(temp_nat(idx_start:end));
+        tws_pred_ant(idx_start:end) = TWS(idx_start, b) + cumsum(temp_ant(idx_start:end));
+        
+        TWS_pred_nat_all(:, b) = tws_pred_nat;
+        TWS_pred_anthro_all(:, b) = tws_pred_ant;
+        
+        valid_tws = ~isnan(TWS(:, b)) & ~isnan(tws_pred_nat) & ~isnan(tws_pred_ant);
+        if sum(valid_tws) > 30
+            ss_tot_tws = sum((TWS(valid_tws, b) - mean(TWS(valid_tws, b))).^2);
+            R2_TWS_nat(b) = 1 - (sum((TWS(valid_tws, b) - tws_pred_nat(valid_tws)).^2) / ss_tot_tws);
+            R2_TWS_anthro(b) = 1 - (sum((TWS(valid_tws, b) - tws_pred_ant(valid_tws)).^2) / ss_tot_tws);
+        end
+    end
 end
 
 fprintf('\nAttribution modeling complete (Anomalies).\n');
@@ -233,6 +261,7 @@ fprintf('Average Delta R^2 (Anthropogenic Gain): %.3f\n', mean(Delta_R2, 'omitna
 attr_file = fullfile(output_dir, 'attribution_results.mat');
 fprintf('Saving attribution results to %s...\n', attr_file);
 save(attr_file, 'R2_nat', 'R2_anthro', 'Delta_R2', 'RMSE_nat', 'RMSE_anthro', ...
+    'R2_TWS_nat', 'R2_TWS_anthro', 'TWS_pred_nat_all', 'TWS_pred_anthro_all', ...
     'feature_importance', 'TWSC_obs', 'TWSC_pred_nat', 'TWSC_pred_anthro', '-v7.3');
 fprintf('=== STEP 4 Complete: Twin Model Attribution (Anomalies) Completed & Saved ===\n\n');
 
