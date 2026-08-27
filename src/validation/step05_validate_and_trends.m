@@ -47,15 +47,13 @@ if ~exist('TWSC_obs', 'var') || isempty(TWSC_obs)
     if exist(attr_mat, 'file')
         fprintf('Loading attribution results from %s...\n', attr_mat);
         attr_data = load(attr_mat);
-        TWSC_obs         = attr_data.TWSC_obs;
-        TWSC_pred_nat    = attr_data.TWSC_pred_nat;
-        TWSC_pred_anthro = attr_data.TWSC_pred_anthro;
-        R2_nat           = attr_data.R2_nat;
-        R2_anthro        = attr_data.R2_anthro;
-        Delta_R2         = attr_data.Delta_R2;
-        RMSE_nat         = attr_data.RMSE_nat;
-        RMSE_anthro      = attr_data.RMSE_anthro;
-        feature_importance = attr_data.feature_importance;
+        TWSC_obs             = attr_data.TWSC_obs;
+        if isfield(attr_data, 'TWSC_pred_nat_all'), TWSC_pred_nat = attr_data.TWSC_pred_nat_all; end
+        if isfield(attr_data, 'TWSC_pred_anthro_all'), TWSC_pred_anthro = attr_data.TWSC_pred_anthro_all; end
+        if isfield(attr_data, 'R2_TWS_nat'), R2_nat = attr_data.R2_TWS_nat; end
+        if isfield(attr_data, 'R2_TWS_anthro'), R2_anthro = attr_data.R2_TWS_anthro; end
+        if isfield(attr_data, 'Delta_R2'), Delta_R2 = attr_data.Delta_R2; end
+        if isfield(attr_data, 'shap_results'), feature_importance = attr_data.shap_results; end
     else
         if is_anomaly
             fprintf('Attribution results not in memory. Running step04b_run_attribution_anomalies.m...\n');

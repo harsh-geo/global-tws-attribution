@@ -171,30 +171,23 @@ parfor b = 1:n_basins
     TWSC_pred_nat_all(:, b) = twsc_nat_raw;
     TWSC_pred_anthro_all(:, b) = twsc_ant_raw;
     
-    % Exact Integration to TWS via Inverse Centered Finite Difference Matrix
+    % Enforce Long-Term Mass Balance via Bias-Corrected Cumulative Sum Integration
     idx_start = find(~isnan(TWS(:, b)), 1);
     if ~isempty(idx_start)
-        % Fill isolated NaNs in raw TWSC if any exist so integration doesn't fail
-        twsc_nat_raw(isnan(twsc_nat_raw)) = 0; 
-        twsc_ant_raw(isnan(twsc_ant_raw)) = 0;
+        valid = ~isnan(TWS(:, b)) & ~isnan(twsc_nat_raw);
+        bias_nat = mean(twsc_nat_raw(valid)) - mean(TWSC_obs(valid, b));
+        bias_ant = mean(twsc_ant_raw(valid)) - mean(TWSC_obs(valid, b));
         
-        n_valid = n_time - idx_start + 1;
-        A = zeros(n_valid, n_valid);
-        for i = 2:n_valid-1
-            A(i, i-1) = -0.5;
-            A(i, i+1) =  0.5;
-        end
-        A(1, 1) = 1; A(1, 2) = 0; % Initial condition
-        A(end, end-1) = -1; A(end, end) = 1; % Backward diff at end
+        twsc_nat_corr = twsc_nat_raw - bias_nat;
+        twsc_ant_corr = twsc_ant_raw - bias_ant;
         
-        B_nat = twsc_nat_raw(idx_start:end); B_nat(1) = TWS(idx_start, b);
-        B_ant = twsc_ant_raw(idx_start:end); B_ant(1) = TWS(idx_start, b);
+        twsc_nat_corr(isnan(twsc_nat_corr)) = 0; 
+        twsc_ant_corr(isnan(twsc_ant_corr)) = 0;
         
-        tws_pred_nat_sub = smoothdata(A \ B_nat, 'movmean', 3);
-        tws_pred_ant_sub = smoothdata(A \ B_ant, 'movmean', 3);
-        
-        tws_pred_nat = nan(n_time, 1); tws_pred_nat(idx_start:end) = tws_pred_nat_sub;
-        tws_pred_ant = nan(n_time, 1); tws_pred_ant(idx_start:end) = tws_pred_ant_sub;
+        tws_pred_nat = nan(n_time, 1); 
+        tws_pred_ant = nan(n_time, 1);
+        tws_pred_nat(idx_start:end) = TWS(idx_start, b) + cumsum(twsc_nat_corr(idx_start:end));
+        tws_pred_ant(idx_start:end) = TWS(idx_start, b) + cumsum(twsc_ant_corr(idx_start:end));
         
         TWS_pred_nat_all(:, b) = tws_pred_nat;
         TWS_pred_anthro_all(:, b) = tws_pred_ant;

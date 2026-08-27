@@ -255,10 +255,18 @@ parfor b = 1:n_basins
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
     
     %% --- Re-integration to TWS ---
+    % Enforce Long-Term Mass Balance via Bias-Corrected Cumulative Sum Integration
     idx_start = find(~isnan(TWS(:, b)), 1);
     if ~isempty(idx_start)
-        temp_nat = y_pred_nat; temp_nat(isnan(temp_nat)) = 0;
-        temp_ant = y_pred_ant; temp_ant(isnan(temp_ant)) = 0;
+        valid = ~isnan(TWS(:, b)) & ~isnan(y_pred_nat);
+        bias_nat = mean(y_pred_nat(valid)) - mean(TWSC_obs(valid, b));
+        bias_ant = mean(y_pred_ant(valid)) - mean(TWSC_obs(valid, b));
+        
+        twsc_nat_corr = y_pred_nat - bias_nat;
+        twsc_ant_corr = y_pred_ant - bias_ant;
+        
+        temp_nat = twsc_nat_corr; temp_nat(isnan(temp_nat)) = 0;
+        temp_ant = twsc_ant_corr; temp_ant(isnan(temp_ant)) = 0;
         
         tws_pred_nat = nan(n_time, 1);
         tws_pred_ant = nan(n_time, 1);

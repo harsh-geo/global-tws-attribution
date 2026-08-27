@@ -14,10 +14,10 @@ run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
 fprintf('✓ STEP 4 Completed in %.2f seconds.\n\n', toc(t_step));
 
 %% STEP 4c/d: PINN and LSTM Attribution
-fprintf('--> Running STEP 4c: PINN Attribution Modeling...\n');
-run(fullfile(project_root, 'src', 'modeling', 'step04e_run_attribution_pinn.m'));
-fprintf('--> Running STEP 4d: LSTM Attribution Modeling...\n');
-run(fullfile(project_root, 'src', 'modeling', 'step04d_run_attribution_lstm.m'));
+% fprintf('--> Running STEP 4c: PINN Attribution Modeling...\n');
+% run(fullfile(project_root, 'src', 'modeling', 'step04e_run_attribution_pinn.m'));
+% fprintf('--> Running STEP 4d: LSTM Attribution Modeling...\n');
+% run(fullfile(project_root, 'src', 'modeling', 'step04d_run_attribution_lstm.m'));
 
 %% STEP 5: Validation, Trends, and Output Generation
 fprintf('--> Running STEP 5: Validation & Trend Analysis...\n');
