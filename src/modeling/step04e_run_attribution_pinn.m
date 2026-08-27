@@ -109,7 +109,7 @@ numEpochs = 200;
 miniBatchSize = 32;
 
 parfor b = 1:n_basins
-    twsc_target = deseasonalize(TWSC_obs(:, b), target_dates);
+    [twsc_target, ST_twsc, base_twsc] = deseasonalize(TWSC_obs(:, b), target_dates);
     p_b  = deseasonalize(P_basin(:, b), target_dates);
     et_b = deseasonalize(ET_basin(:, b), target_dates);
     
@@ -255,15 +255,19 @@ parfor b = 1:n_basins
     Delta_R2(b) = R2_anthro(b) - R2_nat(b);
     
     %% --- Re-integration to TWS ---
+    % Reconstruct RAW TWSC by adding back seasonality and baseline mean
+    twsc_nat_raw = y_pred_nat + ST_twsc + base_twsc;
+    twsc_ant_raw = y_pred_ant + ST_twsc + base_twsc;
+    
     % Enforce Long-Term Mass Balance via Bias-Corrected Cumulative Sum Integration
     idx_start = find(~isnan(TWS(:, b)), 1);
     if ~isempty(idx_start)
-        valid = ~isnan(TWS(:, b)) & ~isnan(y_pred_nat);
-        bias_nat = mean(y_pred_nat(valid)) - mean(TWSC_obs(valid, b));
-        bias_ant = mean(y_pred_ant(valid)) - mean(TWSC_obs(valid, b));
+        valid = ~isnan(TWS(:, b)) & ~isnan(twsc_nat_raw);
+        bias_nat = mean(twsc_nat_raw(valid)) - mean(TWSC_obs(valid, b));
+        bias_ant = mean(twsc_ant_raw(valid)) - mean(TWSC_obs(valid, b));
         
-        twsc_nat_corr = y_pred_nat - bias_nat;
-        twsc_ant_corr = y_pred_ant - bias_ant;
+        twsc_nat_corr = twsc_nat_raw - bias_nat;
+        twsc_ant_corr = twsc_ant_raw - bias_ant;
         
         temp_nat = twsc_nat_corr; temp_nat(isnan(temp_nat)) = 0;
         temp_ant = twsc_ant_corr; temp_ant(isnan(temp_ant)) = 0;
@@ -339,36 +343,38 @@ function [loss, gradients, state] = modelLossAnt(dlnet, X, Y, lambda)
     gradients = dlgradient(loss, dlnet.Learnables);
 end
 
-function x_deseason = deseasonalize(x, dates)
-    x_deseason = nan(size(x));
-    valid_idx = ~isnan(x);
+function [x_deseason, ST, baseline_mean] = deseasonalize(x, dates)
     baseline_idx = year(dates) >= 2004 & year(dates) <= 2009;
+    x_deseason = nan(size(x));
+    ST = zeros(size(x));
+    baseline_mean = 0;
     
+    valid_idx = ~isnan(x);
     if sum(valid_idx) < 24
         months = month(dates);
         for m = 1:12
             idx_m = (months == m);
-            idx_baseline_m = idx_m & baseline_idx;
-            if sum(~isnan(x(idx_baseline_m))) < 3
-                monthly_mean = mean(x(idx_m), 'omitnan');
+            idx_base = idx_m & baseline_idx;
+            if any(idx_base) && ~all(isnan(x(idx_base)))
+                monthly_mean = mean(x(idx_base), 'omitnan');
             else
-                monthly_mean = mean(x(idx_baseline_m), 'omitnan');
+                monthly_mean = mean(x(idx_m), 'omitnan');
             end
             x_deseason(idx_m) = x(idx_m) - monthly_mean;
+            ST(idx_m) = monthly_mean; % Approximation for short series
         end
         return;
     end
-    
     x_filled = x;
     if any(~valid_idx)
         x_filled = fillmissing(x, 'linear');
     end
-    
-    [LT, ST, R] = trenddecomp(x_filled, 'stl', 12);
+    [LT, ST_out, R] = trenddecomp(x_filled, 'stl', 12);
     x_deseas_temp = LT + R;
     baseline_mean = mean(x_deseas_temp(baseline_idx), 'omitnan');
     x_deseason = x_deseas_temp - baseline_mean;
     x_deseason(~valid_idx) = NaN;
+    ST = ST_out;
 end
 
 function Y = pinnPredictWrapper(dlnet, X)
