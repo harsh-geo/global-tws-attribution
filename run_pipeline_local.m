@@ -44,6 +44,12 @@ t_step = tic;
 run(fullfile(project_root, 'src', 'preprocessing', 'step02_aggregate_basins.m'));
 fprintf('✓ STEP 2 Completed in %.2f seconds.\n\n', toc(t_step));
 
+%% STEP 2b: Append Temperature & ONI
+fprintf('--> Running STEP 2b: Appending Temperature and ONI drivers...\n');
+t_step = tic;
+run(fullfile(project_root, 'src', 'preprocessing', 'step02c_append_new_drivers.m'));
+fprintf('✓ STEP 2b Completed in %.2f seconds.\n\n', toc(t_step));
+
 %% STEP 3: Random Forest GRACE Gap-Filling
 fprintf('--> Running STEP 3: Random Forest GRACE Reconstruction...\n');
 t_step = tic;
