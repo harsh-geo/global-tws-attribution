@@ -266,8 +266,8 @@ parfor b = 1:n_basins
         B_nat = twsc_nat_raw(idx_start:end); B_nat(1) = TWS(idx_start, b);
         B_ant = twsc_ant_raw(idx_start:end); B_ant(1) = TWS(idx_start, b);
         
-        tws_pred_nat_sub = A \ B_nat;
-        tws_pred_ant_sub = A \ B_ant;
+        tws_pred_nat_sub = smoothdata(A \ B_nat, 'movmean', 3);
+        tws_pred_ant_sub = smoothdata(A \ B_ant, 'movmean', 3);
         
         tws_pred_nat = nan(n_time, 1); tws_pred_nat(idx_start:end) = tws_pred_nat_sub;
         tws_pred_ant = nan(n_time, 1); tws_pred_ant(idx_start:end) = tws_pred_ant_sub;
