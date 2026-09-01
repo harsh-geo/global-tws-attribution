@@ -204,13 +204,18 @@ parfor b = 1:n_basins
     % TRUE SHAP
     predict_fcn = @(X) predict(rf_ant, X);
     try
-        explainer = shapley(predict_fcn, X_ant_val, 'QueryPoints', X_ant_val);
+        % Limit QueryPoints to speed up execution inside parfor loop
+        max_q = min(size(X_ant_val, 1), 60);
+        idx_q = randperm(size(X_ant_val, 1), max_q);
+        
+        % The 'UseParallel' option accelerates the background sample permutations
+        explainer = shapley(predict_fcn, X_ant_val, 'QueryPoints', X_ant_val(idx_q, :), 'UseParallel', true);
         sv_table = explainer.Shapley;
         num_vals = double(sv_table{:, 2:end});
         
         res = struct();
         res.basin_id = b;
-        res.shap_values = num_vals'; % N x features
+        res.shap_values = num_vals'; % 1 x features (mean absolute SHAP natively returned by explainer.Shapley)
         res.valid_mask = valid_mask;
         shap_results{b} = res;
     catch ME

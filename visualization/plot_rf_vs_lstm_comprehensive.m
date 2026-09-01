@@ -198,24 +198,33 @@ std_imp_rf    = std(norm_imp_rf, 0, 1, 'omitnan') ./ sqrt(n_basins);
 std_imp_lstm  = std(norm_imp_lstm, 0, 1, 'omitnan') ./ sqrt(n_basins);
 
 features = {'Precipitation (P)', 'Evapotranspiration (ET)', 'Runoff (Q)', 'GW Abstraction (GW_{abs})', 'SW Abstraction (SW_{abs})'};
-bar_data = [mean_imp_rf(:), mean_imp_lstm(:)];
 
-hb = bar(bar_data, 'grouped');
-hb(1).FaceColor = c_rf_ant;
-hb(1).DisplayName = 'Random Forest (SHAP Values)';
-hb(2).FaceColor = c_lstm_ant;
-hb(2).DisplayName = 'LSTM (SHAP Values)';
-
-% Add Error Bars
-ngroups = size(bar_data, 1);
-nbars = size(bar_data, 2);
-groupwidth = min(0.8, nbars/(nbars + 1.5));
-for i = 1:nbars
-    x = (1:ngroups) - groupwidth/2 + (2*i-1) * groupwidth / (2*nbars);
-    if i == 1
-        errorbar(x, bar_data(:, i), std_imp_rf, 'k.', 'LineWidth', 1.2, 'HandleVisibility', 'off');
-    else
-        errorbar(x, bar_data(:, i), std_imp_lstm, 'k.', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+if all(isnan(mean_imp_lstm))
+    bar_data = mean_imp_rf(:);
+    hb = bar(bar_data, 'FaceColor', c_rf_ant, 'DisplayName', 'Random Forest (SHAP Values)');
+    
+    % Add Error Bars for RF
+    x = 1:size(bar_data, 1);
+    errorbar(x, bar_data, std_imp_rf(:), 'k.', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+else
+    bar_data = [mean_imp_rf(:), mean_imp_lstm(:)];
+    hb = bar(bar_data, 'grouped');
+    hb(1).FaceColor = c_rf_ant;
+    hb(1).DisplayName = 'Random Forest (SHAP Values)';
+    hb(2).FaceColor = c_lstm_ant;
+    hb(2).DisplayName = 'LSTM (SHAP Values)';
+    
+    % Add Error Bars
+    ngroups = size(bar_data, 1);
+    nbars = size(bar_data, 2);
+    groupwidth = min(0.8, nbars/(nbars + 1.5));
+    for i = 1:nbars
+        x = (1:ngroups) - groupwidth/2 + (2*i-1) * groupwidth / (2*nbars);
+        if i == 1
+            errorbar(x, bar_data(:, i), std_imp_rf, 'k.', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+        else
+            errorbar(x, bar_data(:, i), std_imp_lstm, 'k.', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+        end
     end
 end
 
@@ -225,7 +234,9 @@ xtickangle(20);
 ylabel('Relative Feature Contribution (%)', 'FontSize', 11, 'FontWeight', 'bold');
 title('(c) Global Feature Importance Profiles across Drivers', 'FontSize', 12, 'FontWeight', 'bold');
 legend('Location', 'northeast', 'FontSize', 9.5);
-ylim([0, max(bar_data(:))*1.3]);
+max_bar = max(bar_data(:));
+if isnan(max_bar) || max_bar == 0, max_bar = 100; end
+ylim([0, max_bar*1.3]);
 
 %% --- PANEL (d): Hotspot Time-Series Reconstruction (Basin 51: Ganges-Brahmaputra) ---
 subplot(2, 2, 4);

@@ -47,6 +47,14 @@ else
     end
 end
 
+% Load Delta R2 to determine if anthropogenic impact is significant
+attr_mat = fullfile(table_dir, 'attribution_results.mat');
+if exist(attr_mat, 'file')
+    load(attr_mat, 'Delta_R2');
+else
+    Delta_R2 = zeros(103, 1);
+end
+
 % Ensure feature_importance is [n_basins x n_features]
 [dim_a, dim_b] = size(feature_importance);
 if dim_a < dim_b && (dim_a == 5 || dim_a == 7)
@@ -75,10 +83,14 @@ if dim1 == 720 && dim2 == 360
 end
 
 % 2. Determine dominant driver per basin and configure palette
-[~, dom_driver_idx] = max(feature_importance, [], 2);
+dom_driver_idx = nan(n_basins, 1);
+delta_r2_threshold = 0.00; % Threshold for anthropogenic dominance
 
 if n_features == 7
     % 7-Feature Architecture: P, ET, Q, T, ONI, GW_abs, SW_abs
+    gw_idx = 6; sw_idx = 7;
+    nat_indices = 1:5;
+    
     driver_labels = {'Precipitation (P)', 'Evapotranspiration (ET)', 'Runoff (Q)', ...
                      'Temperature (T)', 'ENSO (ONI)', ...
                      'Groundwater Abstraction (GW)', 'Surface Water Abstraction (SW)'};
@@ -93,6 +105,9 @@ if n_features == 7
     ];
 else
     % 5-Feature Architecture: P, ET, Q, GW_abs, SW_abs
+    gw_idx = 4; sw_idx = 5;
+    nat_indices = 1:3;
+    
     driver_labels = {'Precipitation (P)', 'Evapotranspiration (ET)', 'Runoff (Q)', ...
                      'Groundwater Abstraction (GW)', 'Surface Water Abstraction (SW)'};
     cmap = [
@@ -102,6 +117,21 @@ else
         0.85, 0.33, 0.10;   % 4: Orange (GW_abs)
         0.85, 0.00, 0.00    % 5: Red (SW_abs)
     ];
+end
+
+for b = 1:n_basins
+    if Delta_R2(b) > delta_r2_threshold
+        % Anthropogenically driven: compare GW vs SW
+        if feature_importance(b, gw_idx) >= feature_importance(b, sw_idx)
+            dom_driver_idx(b) = gw_idx;
+        else
+            dom_driver_idx(b) = sw_idx;
+        end
+    else
+        % Climate driven: max among natural variables
+        [~, max_nat] = max(feature_importance(b, nat_indices));
+        dom_driver_idx(b) = nat_indices(max_nat);
+    end
 end
 
 % Map driver index to spatial grid (0 = background, 1..n_features = drivers)
