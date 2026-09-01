@@ -32,7 +32,7 @@ echo "================================================="
 # Array of steps to run
 STEPS=(
     "src/preprocessing/step01_unit_conversion.m"
-    "src/preprocessing/step02_generate_basin_timeseries.m"
+    "src/preprocessing/step02_aggregate_basins.m"
     "src/preprocessing/step02c_append_new_drivers.m"
     "src/modeling/step04_run_attribution.m"
 )
