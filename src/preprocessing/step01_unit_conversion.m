@@ -109,10 +109,16 @@ if exist(p_file, 'file')
     fprintf('[2/6] Loading ERA5 Precipitation from %s...\n', p_file);
     p_raw = ncread(p_file, 'tp');
     p_raw = clean_nans(p_raw);
+    
+    % Read time to calculate days in each month
+    t_sec = double(ncread(p_file, 'valid_time'));
+    dt = datetime(t_sec, 'ConvertFrom', 'posixtime');
+    days_in_month = eomday(year(dt), month(dt));
+    days_mult = reshape(days_in_month, 1, 1, []);
 
-    % Conversion: m/month -> cm/month (x 100)
-    P_grid = p_raw * 100.0;
-    fprintf('   Precipitation converted: m/month -> cm/month (scaled x100).\n');
+    % Conversion: m/day -> cm/month (x days_in_month x 100)
+    P_grid = p_raw .* days_mult * 100.0;
+    fprintf('   Precipitation converted: m/day -> cm/month (scaled by days in month x100).\n');
     clear p_raw;
 else
     warning('Precipitation file %s not found.', p_file);
@@ -158,10 +164,16 @@ if exist(q_file, 'file')
     fprintf('[4/6] Loading ERA5 Runoff/Discharge from %s...\n', q_file);
     q_raw = ncread(q_file, 'ro');
     q_raw = clean_nans(q_raw);
+    
+    % Read time to calculate days in each month
+    t_sec_q = double(ncread(q_file, 'valid_time'));
+    dt_q = datetime(t_sec_q, 'ConvertFrom', 'posixtime');
+    days_in_month_q = eomday(year(dt_q), month(dt_q));
+    days_mult_q = reshape(days_in_month_q, 1, 1, []);
 
-    % Convert to cm/month (x 100)
-    Q_grid = q_raw * 100.0;
-    fprintf('   Runoff converted: m/month -> cm/month (scaled x100).\n');
+    % Convert to cm/month (x days_in_month x 100)
+    Q_grid = q_raw .* days_mult_q * 100.0;
+    fprintf('   Runoff converted: m/day -> cm/month (scaled by days in month x100).\n');
     clear q_raw;
 else
     warning('Runoff file %s not found.', q_file);
