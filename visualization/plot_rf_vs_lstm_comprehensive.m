@@ -151,17 +151,32 @@ dr2_rf = Delta_R2_rf(valid_idx);
 dr2_lstm = Delta_R2_lstm(valid_idx);
 basin_ids = find(valid_idx);
 
-% 1:1 reference line
-max_val = max([dr2_rf; dr2_lstm; 0.08]) * 1.15;
-plot([0, max_val], [0, max_val], 'k--', 'LineWidth', 1.2, 'DisplayName', '1:1 Line');
+% Correlation & Linear Fit
+r_corr = corr(dr2_rf, dr2_lstm, 'rows', 'complete');
+p_fit = polyfit(dr2_rf, dr2_lstm, 1);
+x_range = [-1.6, 3.5];
+x_trend = linspace(x_range(1), x_range(2), 100);
+y_trend = polyval(p_fit, x_trend);
 
-% Scatter points
+% Zero-reference quadrant dashed lines (x=0, y=0)
+xline(0, 'k--', 'LineWidth', 1.0, 'Alpha', 0.55, 'HandleVisibility', 'off');
+yline(0, 'k--', 'LineWidth', 1.0, 'Alpha', 0.55, 'HandleVisibility', 'off');
+
+% Scatter points for all basins
 scatter(dr2_rf, dr2_lstm, 45, 'filled', 'MarkerFaceColor', [0.3 0.6 0.4], ...
-    'MarkerEdgeColor', 'k', 'MarkerFaceAlpha', 0.8, 'DisplayName', 'Basins (N=103)');
+    'MarkerEdgeColor', [0.15 0.15 0.15], 'MarkerFaceAlpha', 0.75, 'DisplayName', 'Basins (N=103)');
+
+% Linear regression trend line
+plot(x_trend, y_trend, 'b-', 'LineWidth', 1.8, ...
+    'DisplayName', sprintf('Linear Fit (r = %.2f, p < 0.01)', r_corr));
 
 % Highlight key anthropogenic hotspot basins
 hotspots = [51, 42, 39, 13, 36, 17]; % Ganges, Indus, Tigris, Colorado, Kura, Don
 hotspot_names = {'Ganges-Brahmaputra', 'Indus', 'Tigris-Euphrates', 'Colorado', 'Kura-Araks', 'Don'};
+
+% Targeted label offsets to ensure clear readability and prevent overlaps
+offsets_x = [ 0.05,  0.05,  0.05,  0.05, -0.65,  0.05];
+offsets_y = [-0.007, 0.005,-0.008, 0.005,-0.006, 0.005];
 
 for h = 1:length(hotspots)
     bid = hotspots(h);
@@ -169,20 +184,20 @@ for h = 1:length(hotspots)
         x_val = Delta_R2_rf(bid);
         y_val = Delta_R2_lstm(bid);
         plot(x_val, y_val, 'rp', 'MarkerSize', 11, 'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'k', 'HandleVisibility', 'off');
-        text(x_val + 0.002, y_val, sprintf('%s (B%d)', hotspot_names{h}, bid), ...
-            'FontSize', 8.5, 'FontWeight', 'bold', 'Color', [0.7 0.0 0.0]);
+        text(x_val + offsets_x(h), y_val + offsets_y(h), sprintf('%s (B%d)', hotspot_names{h}, bid), ...
+            'FontSize', 8.5, 'FontWeight', 'bold', 'Color', [0.75 0.0 0.0]);
     end
 end
 
-% Correlation
-r_corr = corr(dr2_rf, dr2_lstm, 'rows', 'complete');
 xlabel('\Delta R^2 (Random Forest Gain: M_{anthro} - M_{nat})', 'FontSize', 11, 'FontWeight', 'bold');
 ylabel('\Delta R^2 (LSTM Deep Learning Gain)', 'FontSize', 11, 'FontWeight', 'bold');
-title(sprintf('(b) Anthropogenic Fingerprint Consistency (r = %.2f, p < 0.001)', r_corr), ...
+title(sprintf('(b) Anthropogenic Fingerprint Consistency (r = %.2f, p < 0.01)', r_corr), ...
     'FontSize', 12, 'FontWeight', 'bold');
-xlim([min(dr2_rf)*1.1, max_val]);
-ylim([min(dr2_lstm)*1.1, max_val]);
-legend('Location', 'northwest', 'FontSize', 9.5);
+
+% Independent data-driven limits
+xlim([-1.6, 3.5]);
+ylim([-0.10, 0.10]);
+legend('Location', 'northwest', 'FontSize', 9.0);
 
 %% --- PANEL (c): Global Mean Feature Importance Comparison ---
 subplot(2, 2, 3);
