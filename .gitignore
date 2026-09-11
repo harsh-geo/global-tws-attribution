@@ -10,5 +10,6 @@
 Paper/*.docx
 ~$*.docx
 *.png
+!outputs/figures/*.png
 *.fig
 *.slx

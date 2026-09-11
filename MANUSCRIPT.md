@@ -45,9 +45,9 @@ We then implement a twin Random Forest architecture that contrasts a Natural Bas
 
 The analysis encompasses the world's 103 largest river basins, which collectively drain approximately 75% of the global continental land area and support the majority of the world's population. Basin boundaries are delineated using a high-resolution basin mask at 0.5° × 0.5° spatial resolution (720 × 360 grid cells), consistent with the native resolution of the input datasets. All spatial aggregations employ latitude-cosine area weighting ($\cos(\text{lat})$) to account for the decrease in grid cell area toward the poles, ensuring physically meaningful basin-average estimates.
 
-> **[INSERT Figure 1 HERE]**  
-> *Description:* A global map (Robinson or Mollweide projection) displaying all 103 river basin polygons, color-coded by basin ID or grouped by continent. Include latitude/longitude grid lines, a scale bar, and labels for the key basins discussed in the paper.  
-> **Figure 1.** Study domain showing the 103 largest global river basins used in this analysis. Basins are shaded by unique identifiers overlaid on a global land mask at 0.5° × 0.5° resolution. Major basins discussed in the text (Indus, Tigris-Euphrates, Colorado, Amazon, Congo) are labeled.
+![Figure 1: Study Domain of 103 Major Global River Basins](outputs/figures/study_domain_map.png)
+
+> **Figure 1.** Study domain showing the 103 largest global river basins used in this analysis. Basins are shaded by unique identifiers overlaid on a global land mask at 0.5° × 0.5° resolution. Major basins discussed in the text (Indus, Tigris-Euphrates, Colorado, Amazon, Congo, Ganges-Brahmaputra, Yangtze, Mississippi) are labeled.
 
 ---
 
@@ -89,9 +89,14 @@ To obtain a continuous TWS record, we reconstruct missing GRACE months—includi
 
 RF hyperparameters are set to 200 trees (`n_trees = 200`) with a minimum leaf size of 5 (`min_leaf_size = 5`) to balance predictive accuracy and regularization against overfitting. Model skill is evaluated using Out-of-Bag (OOB) predictions, which provide an unbiased estimate of generalization error without requiring a separate validation set. The OOB Root Mean Square Error (RMSE) and coefficient of determination ($R^2$) are recorded for each basin. All 103 basins are processed in parallel using MATLAB's `parfor` construct for computational efficiency on the DIRAC HPC cluster.
 
-> **[INSERT Figure 2 HERE]**  
-> *Description:* Three-panel figure. Panel (a): scatter plot with color-coded density. Panel (b): time series plot showing observed TWS with markers, continuous reconstructed TWS as a line, and a gray or red shaded region for the 2017–2018 gap. Panel (c): distribution of OOB R² across all 103 basins showing the quality of reconstruction.  
-> **Figure 2.** Validation of the Random Forest gap-filling model. (a) Scatter plot of OOB-predicted versus observed TWS anomalies for a representative basin (e.g., Indus or Amazon), with 1:1 reference line, R², and RMSE annotated. (b) Time series of observed GRACE TWS (circles), gap-filled TWS (red line), and the shaded inter-mission gap period (July 2017–May 2018) for the same basin. (c) Histogram or boxplot of OOB R² values across all 103 basins.
+<p align="center">
+  <img src="outputs/figures/basin_51_scatter.png" width="48%" alt="Figure 2a: OOB Scatter Plot" />
+  <img src="outputs/figures/global_oob_r2_histogram.png" width="48%" alt="Figure 2c: Global OOB R2 Distribution" />
+  <br/>
+  <img src="outputs/figures/basin_51_timeseries.png" width="98%" alt="Figure 2b: Reconstructed Continuous TWS Timeseries" />
+</p>
+
+> **Figure 2.** Validation of the Random Forest gap-filling model. (a) Scatter plot of OOB-predicted versus observed TWS anomalies for Basin 51 (Ganges-Brahmaputra), with 1:1 reference line, $R^2$, and RMSE annotated. (b) Time series of observed GRACE TWS (circles), continuous gap-filled reconstructed TWS (red line), and the shaded inter-mission gap period (July 2017–May 2018). (c) Histogram of Out-of-Bag (OOB) $R^2$ values across all 103 global river basins.
 
 ---
 
@@ -147,9 +152,51 @@ $$\Delta R^2 = R^2_{anthro} - R^2_{nat} \tag{11}$$
 
 Feature importance is quantified via Out-of-Bag (OOB) Permuted Predictor Delta Error, measuring the increase in mean squared error when each driver is randomly scrambled across OOB samples.
 
-> **[INSERT Figure 3 HERE]**  
-> *Description:* A conceptual/methodological flowchart showing the twin model architecture. Input boxes for each predictor variable, two parallel Random Forest model boxes, output arrows to TWSC predictions, and the ΔR² comparison step. Use a clean, schematic style suitable for publication.  
-> **Figure 3.** Schematic diagram of the Twin Random Forest Attribution Framework. Left branch: $M_{nat}$ (Natural Baseline) trained on $P, ET, Q$. Right branch: $M_{anthro}$ (Full Anthropogenic) trained on $P, ET, Q, GW_{abs}, SW_{abs}$. The Variance Explained Gain ($\Delta R^2$) is computed as the difference in OOB $R^2$ between the two models.
+```mermaid
+graph TD
+    classDef input fill:#e8f4f8,stroke:#2b7bba,stroke-width:1.5px,color:#000;
+    classDef model fill:#fff2e6,stroke:#f28e2b,stroke-width:2px,color:#000;
+    classDef metric fill:#eaf7ed,stroke:#59a14f,stroke-width:2px,color:#000;
+
+    subgraph Inputs ["Input Hydroclimate & Anthropogenic Predictor Fluxes (0.5° Monthly, cm/mo)"]
+        P["Precipitation (P, ERA5)"]:::input
+        ET["Evapotranspiration (ET, GLEAM)"]:::input
+        Q["Discharge / Runoff (Q, ERA5)"]:::input
+        GW["Groundwater Abstraction (GW_abs, PCR-GLOBWB)"]:::input
+        SW["Surface Water Abstraction (SW_abs, PCR-GLOBWB)"]:::input
+    end
+
+    subgraph TwinModels ["Twin Machine Learning Formulation"]
+        Mnat["Natural Baseline Model (M_nat)<br/>Inputs: P, ET, Q<br/>RF Ensemble (500 Trees, m_try=1)"]:::model
+        Manthro["Full Anthropogenic Model (M_anthro)<br/>Inputs: P, ET, Q, GW_abs, SW_abs<br/>RF Ensemble (500 Trees, m_try=1)"]:::model
+    end
+
+    subgraph Evaluation ["Attribution & Causal Diagnostics"]
+        DeltaR2["Variance Explained Gain:<br/>ΔR² = R²_anthro - R²_nat"]:::metric
+        DeltaNSE["3-Yr Contiguous Block CV Gain:<br/>ΔNSE = NSE_anthro - NSE_nat"]:::metric
+        SHAP["Event-Level Feature Attribution:<br/>Shapley Additive Explanations (SHAP)"]:::metric
+        Transfer["Spatial Transferability Test:<br/>Pristine (52) → Irrigated (51) Bias"]:::metric
+    end
+
+    P --> Mnat
+    ET --> Mnat
+    Q --> Mnat
+
+    P --> Manthro
+    ET --> Manthro
+    Q --> Manthro
+    GW --> Manthro
+    SW --> Manthro
+
+    Mnat --> DeltaR2
+    Manthro --> DeltaR2
+    Mnat --> DeltaNSE
+    Manthro --> DeltaNSE
+    Manthro --> SHAP
+    Mnat -.-> Transfer
+```
+
+> **Figure 3.** Schematic diagram of the Twin Random Forest Attribution Framework. Left branch: $M_{nat}$ (Natural Baseline) trained on $P, ET, Q$. Right branch: $M_{anthro}$ (Full Anthropogenic) trained on $P, ET, Q, GW_{abs}, SW_{abs}$. The Variance Explained Gain ($\Delta R^2$) and 3-Year Block CV efficiency gain ($\Delta\text{NSE}$) isolate the human water withdrawal contribution, complemented by SHAP attribution and Spatial Transferability causal tests.
 
 ---
 
@@ -214,13 +261,13 @@ To address the multicollinearity between climate-driven droughts and irrigation 
 
 Application of the Theil-Sen slope estimator to the gap-filled, continuous TWS record (April 2002–December 2019) reveals widespread negative TWS trends across the 103 basins analyzed (Figure 4). Exactly 40 out of 103 basins (38.8%) exhibit statistically significant ($p < 0.05$, Hamed and Rao Modified Mann-Kendall test) negative trends, with a mean decline rate of -0.535 cm/year among these declining basins. The most severe depletions, ranked by absolute volumetric rate (km³/year), are observed in the Ganges-Brahmaputra Basin (Basin 51, -20.859 km³/year, $p = 3.38 \times 10^{-8}$), the Yukon Basin (Basin 5, -9.502 km³/year, $p = 1.78 \times 10^{-15}$), the São Francisco Basin (Basin 85, -9.110 km³/year, $p = 3.58 \times 10^{-5}$), the Mackenzie Basin (Basin 4, -7.307 km³/year, $p = 6.68 \times 10^{-9}$), the Tocantins Basin (Basin 80, -5.630 km³/year, $p = 0.015$), the Indus Basin (Basin 42, -5.588 km³/year, $p = 6.45 \times 10^{-11}$), the Hwang Ho Basin (Basin 38, -5.457 km³/year, $p < 10^{-15}$), the Don Basin (Basin 17, -4.141 km³/year, $p = 1.16 \times 10^{-5}$), the Volga Basin (Basin 8, -4.013 km³/year, $p = 0.046$), and the Tigris-Euphrates Basin (Basin 39, -3.878 km³/year, $p = 1.55 \times 10^{-5}$). Conversely, 17 basins (16.5%) show significant positive TWS trends, primarily located in high-latitude and humid tropical zones, reflecting increased precipitation regimes. The remaining 46 basins (44.7%) exhibit no statistically significant secular trend.
 
-> **[INSERT Figure 4 HERE]**  
-> *Description:* A global choropleth map with each basin polygon colored by its Theil-Sen TWS trend slope. Use a diverging Red-White-Blue colormap symmetric about zero. Overlay stipple dots on non-significant basins. Include a colorbar labeled 'TWS Trend (cm/year)' and a title. Generated by `plot_basin_trends.m`.  
+![Figure 4: Global Map of TWS Trends](outputs/figures/tws_basin_trends.png)
+
 > **Figure 4.** Global map of TWS trends (cm/year) across the 103 largest river basins for the period April 2002–December 2019. A diverging blue (positive/gaining)–red (negative/declining) color scale centered at zero is used. Basins with statistically non-significant trends ($p \ge 0.05$, Hamed–Rao Modified Mann-Kendall test) are overlaid with gray stippling. Non-basin areas are shown in light gray.
 
-> **[INSERT Figure 5 HERE]**  
-> *Description:* A horizontal or vertical bar chart showing the top-20 declining basins with their Theil-Sen trend slopes in volumetric units (km³/year), ranked from most severe to least severe. Basin names or IDs on the y-axis. Significance indicated by bar color.  
-> **Figure 5.** Bar chart of the 20 basins with the most negative TWS trends (km³/year), ranked from most severe to least severe. Bars are colored red for statistically significant trends and gray for non-significant trends.
+![Figure 5: Top 20 Declining Basins in Volumetric Rate](outputs/figures/top20_negative_trends.png)
+
+> **Figure 5.** Bar chart of the 20 basins with the most negative TWS trends in absolute volumetric rate (km³/year), ranked from most severe to least severe. Bars are colored red for statistically significant trends ($p < 0.05$) and gray for non-significant trends.
 
 ---
 
@@ -242,8 +289,8 @@ The 3-Year Contiguous Block Cross-Validation demonstrates that both twin attribu
 > | **Median RMSE (cm/month)** | 1.5414 | 1.5451 | Comparable |
 > | **Mean RMSE (cm/month)** | 1.6474 | **1.6384** | Lower error |
 
-> **[INSERT Figure 6 HERE]**  
-> *Description:* Side-by-side boxplots for each metric. Two boxes per metric ($M_{nat}$ and $M_{anthro}$). NSE and KGE should show that $M_{anthro}$ generally matches or exceeds $M_{nat}$. RMSE should show that $M_{anthro}$ generally has equal or lower error.  
+![Figure 6: Model Performance Comparison Boxplots](outputs/figures/model_comparison_boxplots.png)
+
 > **Figure 6.** Box-and-whisker plots comparing Block Cross-Validation performance metrics (NSE, KGE, RMSE) between the Natural Baseline ($M_{nat}$, blue) and Full Anthropogenic ($M_{anthro}$, orange) models across all 103 basins. Whiskers extend to the 5th and 95th percentiles; outliers are plotted as individual points.
 
 ---
@@ -254,19 +301,19 @@ The twin attribution framework reveals heterogeneous driver dominance across the
 
 Groundwater and surface water abstractions ($GW_{abs}$ and $SW_{abs}$) provide crucial explanatory gains ($\Delta R^2 > 0$) across 75.7% of the global network (78 out of 103 basins), concentrated most intensely in arid to semi-arid agricultural basins with heavy irrigation pumping (e.g., the Indus, Tigris-Euphrates, and North American agricultural zones).
 
-> **[INSERT Figure 7 HERE]**  
-> *Description:* A global choropleth map with each basin polygon colored by its dominant driver (5 categories). Use the colormap: P=Blue, ET=Green, Q=Cyan, GW=Orange, SW=Red. Include a categorical colorbar/legend. Generated by `plot_global_attribution_map.m`.  
+![Figure 7: Global Map of Dominant Drivers of TWS Variability](outputs/figures/global_attribution_map.png)
+
 > **Figure 7.** Global map of the dominant driver of TWS variability in each of the 103 basins, determined by maximum OOB permutation feature importance from $M_{anthro}$. Basins are color-coded by dominant driver category: Precipitation (blue), Evapotranspiration (green), Runoff (cyan), Groundwater Abstraction (orange), Surface Water Abstraction (red). A categorical legend is provided.
 
 The Variance Explained Gain ($\Delta R^2$) and Cross-Validation Efficiency Gain ($\Delta\text{NSE}$) provide quantitative measures of the additional explanatory power contributed by anthropogenic abstractions. Across the 103 basins, the mean $\Delta\text{NSE}$ is +0.0119, with individual basins exhibiting substantial positive gains exceeding +0.12 (Figure 8).
 
-> **[INSERT Figure 8 HERE]**  
-> *Description:* A sorted bar chart or lollipop plot with basin ID/name on the x-axis and ΔR² on the y-axis. Bars colored by dominant driver. Label the top 10 and bottom 5 basins.  
+![Figure 8: Anthropogenic Explanatory Gain Lollipop Plot](outputs/figures/delta_r2_attribution_barchart.png)
+
 > **Figure 8.** Scatter plot or bar chart of Variance Explained Gain ($\Delta R^2 = R^2_{anthro} - R^2_{nat}$) for the 103 basins, sorted from highest to lowest $\Delta R^2$. Basins are colored by their dominant driver category. Key basins (Indus, Tigris-Euphrates, Colorado, etc.) are labeled. A dashed horizontal line at $\Delta R^2 = 0$ separates basins where anthropogenic variables improve model performance from those where they do not.
 
-> **[INSERT Figure 9 HERE]**  
-> *Description:* A horizontal stacked bar chart for the 15 most severely declining basins. Each bar is segmented into 5 features (P, ET, Q, GW_abs, SW_abs) with consistent colors matching Figure 7. Annotate where GW_abs or SW_abs dominate.  
-> **Figure 9.** Stacked or grouped bar chart of OOB permutation feature importance for the top 15 most stressed basins (highest negative TWS trend $\times$ significant). Five stacked segments per bar represent $P, ET, Q, GW_{abs}$, and $SW_{abs}$ importance. Basin names are shown on the y-axis.
+![Figure 9: Relative Feature Importance in Top 15 Stressed Basins](outputs/figures/fig_feature_importance_top15.png)
+
+> **Figure 9.** Stacked horizontal bar chart of relative feature importance for the top 15 most stressed basins (highest negative TWS trend $\times$ significant). Five stacked segments per bar represent $P, ET, Q, GW_{abs}$, and $SW_{abs}$ relative contribution (%). Basin names and volumetric rates are shown on the y-axis.
 
 ---
 
@@ -290,12 +337,12 @@ The LSTM architecture achieves a dramatic increase in overall predictive skill, 
 
 Crucially, both machine learning paradigms exhibit mutual consensus regarding global anthropogenic depletion hotspots (Figure 10b, Figure 11). In the intensively irrigated Ganges-Brahmaputra Basin (Basin 51), both models detect a powerful anthropogenic fingerprint, with Random Forest yielding $\Delta R^2 = +0.0935$ (+9.4%) and LSTM reaching an exceptional $R^2_{anthro} = 0.8791$ ($\Delta R^2 = +0.0129$). In the arid Tigris-Euphrates Basin (Basin 39), where multi-year drought interacts with severe agricultural overdraft, the Random Forest yields an attribution gain of $\Delta R^2 = +0.0210$, while the LSTM achieves $R^2 = 0.7333$. In the Indus Basin (Basin 42), the LSTM achieves a high predictive skill of $R^2 = 0.8879$, while Block CV confirms an anthropogenic gain of $\Delta\text{NSE} = +0.0377$.
 
-> **[INSERT Figure 10 HERE]**  
-> *Description:* Four-panel comparison figure. Panel (a): Boxplot and scatter distribution of R² (M_nat and M_anthro for RF vs LSTM). Panel (b): Scatter plot of ΔR² (RF) vs ΔR² (LSTM) with 1:1 line and highlighted hotspots. Panel (c): Global mean feature importance bar chart across the 5 drivers. Panel (d): Observed vs RF vs LSTM TWSC anomaly time series for Basin 51 (Ganges-Brahmaputra). Generated by `plot_rf_vs_lstm_comprehensive.m`.  
+![Figure 10: Global RF vs LSTM Model Comparison](outputs/figures/rf_vs_lstm_comprehensive.png)
+
 > **Figure 10.** Global performance and attribution comparison between Random Forest (RF) and Long Short-Term Memory (LSTM) models across all 103 river basins. (a) Boxplots of explanatory variance ($R^2$) for Natural ($M_{nat}$) and Full Anthropogenic ($M_{anthro}$) models. (b) Scatter plot comparing the Anthropogenic Variance Gain ($\Delta R^2$) between RF and LSTM, with major water-stressed basins highlighted. (c) Global mean feature importance profile across drivers ($P, ET, Q, GW_{abs}, SW_{abs}$). (d) Reconstructed deseasonalized TWSC anomaly time series for the Ganges-Brahmaputra Basin (Basin 51), comparing GRACE observations (black) against RF (blue dashed) and LSTM (orange solid) predictions with inter-mission gap shading.
 
-> **[INSERT Figure 11 HERE]**  
-> *Description:* Four-panel time series showcase for 4 contrasting hydroclimatic and human management regimes: Basin 51 (Ganges-Brahmaputra), Basin 39 (Tigris-Euphrates), Basin 1 (Amazon), and Basin 5 (Yukon). Each panel shows observed TWSC vs RF vs LSTM with 95% Confidence Interval envelopes. Generated by `plot_rf_vs_lstm_multi_basin_timeseries.m`.  
+![Figure 11: Multi-Basin Hydroclimatic Showcase](outputs/figures/rf_vs_lstm_four_basins.png)
+
 > **Figure 11.** Multi-basin hydroclimatic showcase comparing Observed GRACE TWSC against Random Forest and LSTM predictions across four contrasting regimes: (a) Ganges-Brahmaputra (Basin 51: intensive irrigation and monsoon dynamics), (b) Tigris-Euphrates (Basin 39: arid climate and aquifer overdraft), (c) Amazon (Basin 1: humid tropical climate dominance), and (d) Yukon (Basin 5: cold snowmelt catchment with subsurface delay memory). Shaded orange bands denote the LSTM 95% Confidence Interval envelope.
 
 ---
@@ -316,12 +363,20 @@ The Spatial Transferability Test further isolates the anthropogenic signal from 
 
 The results reveal a systematic positive prediction bias across the Irrigated cohort: the model consistently overestimates water storage relative to GRACE observations (Figure 13). Because this transfer model has never seen an irrigated basin during training, its failure to capture the observed decline purely via $P$, $ET$, and $Q$ provides definitive causal proof that the residual storage loss is driven by the missing anthropogenic sink. The magnitude of the positive bias in the most heavily irrigated basins closely corresponds to the expected depletion rates from PCR-GLOBWB abstraction estimates, providing independent corroboration of the twin model attribution results.
 
-> **[INSERT Figure 12 HERE]**  
-> *Description:* Multi-panel SHAP Summary Plots for five hotspot basins: (a) Ganges-Brahmaputra (Basin 51), (b) Tigris-Euphrates (Basin 39), (c) Indus (Basin 42), (d) Colorado (Basin 13), (e) Hari Rud (Basin 40). Each panel is a scatter plot where the y-axis represents the 5 driver variables, the x-axis represents the SHAP value (impact on TWSC prediction), and color indicates the feature value magnitude (low to high). Generated by `plot_shap_summary.m`.  
+<p align="center">
+  <img src="outputs/figures/shap_summary_basin_51.png" width="48%" alt="Figure 12a: Ganges-Brahmaputra (Basin 51)" />
+  <img src="outputs/figures/shap_summary_basin_39.png" width="48%" alt="Figure 12b: Tigris-Euphrates (Basin 39)" />
+  <br/>
+  <img src="outputs/figures/shap_summary_basin_42.png" width="48%" alt="Figure 12c: Indus (Basin 42)" />
+  <img src="outputs/figures/shap_summary_basin_13.png" width="48%" alt="Figure 12d: Colorado (Basin 13)" />
+  <br/>
+  <img src="outputs/figures/shap_summary_basin_40.png" width="55%" alt="Figure 12e: Hari Rud (Basin 40)" />
+</p>
+
 > **Figure 12.** SHAP (SHapley Additive exPlanations) Summary Plots for five anthropogenic hotspot basins, demonstrating the directional impact of hydroclimate and abstraction drivers on the Random Forest $TWSC$ prediction. Each point represents a single month. High groundwater abstraction volumes (warm colors) consistently yield negative SHAP values, independently pulling the predicted water storage trajectory downward. (a) Ganges-Brahmaputra, (b) Tigris-Euphrates, (c) Indus, (d) Colorado, (e) Hari Rud.
 
-> **[INSERT Figure 13 HERE]**  
-> *Description:* Bar chart comparing mean prediction bias (TWSC_pred − TWSC_obs) across the top 20 most biased Irrigated basins from the Spatial Transferability Test. Positive bias indicates over-prediction by M_nat trained on Pristine basins, proving the missing anthropogenic sink. Generated by `plot_spatial_transferability.m`.  
+![Figure 13: Spatial Transferability Test](outputs/figures/transferability_bias_barchart.png)
+
 > **Figure 13.** Spatial Transferability Test demonstrating causal evidence of abstraction-driven depletion. The Natural Baseline Model ($M_{nat}$), trained strictly on 52 pristine, undisturbed basins, is evaluated out-of-sample on 51 heavily irrigated basins. The systematic over-prediction (positive bias) in irrigated basins occurs because $M_{nat}$ cannot simulate the missing human withdrawal sink using natural climate forcings alone.
 
 ---
@@ -479,3 +534,9 @@ Zhang, Y., et al. (2016). Multi-decadal trends in global terrestrial evapotransp
 ## Supplementary Information (Outline)
 
 The following supplementary materials accompany this manuscript. Table S1 provides a complete basin-by-basin summary including Basin ID, Basin Name, TWS trend (cm/year and km³/year), Modified Mann-Kendall p-value, significance flag, Block CV NSE ($M_{nat}$ and $M_{anthro}$), $\Delta\text{NSE}$, $\Delta R^2$ with 95% bootstrap CI, and dominant driver category for all 103 basins. Figure S1 shows individual basin time series of observed and reconstructed TWS anomalies for all 103 basins in a multi-page panel figure. Figure S2 presents a global map of OOB $R^2$ for the gap-filling Random Forest model, showing spatial variability in reconstruction quality. Figure S3 provides the correlation matrix of predictor variables ($P, ET, Q, GW_{abs}, SW_{abs}$) across representative basins, illustrating inter-predictor dependencies. Figure S4 shows SHAP summary plots for all five hotspot basins (Basins 51, 39, 42, 13, 40). Figure S5 presents the full bootstrap $\Delta R^2$ distributions for the top 20 most stressed basins with 95% CI envelopes. All MATLAB code used in this study is available at `[repository URL]`. Processed basin-level time series and attribution results are archived at `[DOI/repository]`.
+
+### Figure S5. Moving Block-Bootstrap Attribution Uncertainty
+
+![Figure S5: Moving Block-Bootstrap Attribution Uncertainty](outputs/figures/fig_bootstrap_uncertainty.png)
+
+> **Figure S5.** Moving Block-Bootstrap ($N=1000$ resamples, 36-month block length) distributions of the Variance Explained Gain ($\Delta R^2 = R^2_{anthro} - R^2_{nat}$) across the 20 most water-stressed river basins. Dashed vertical black lines represent the mean empirical $\Delta R^2$, shaded colored areas indicate the resampled bootstrap density distribution, and red error bars mark the 95% empirical Confidence Intervals.
