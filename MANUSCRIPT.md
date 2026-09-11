@@ -152,49 +152,7 @@ $$\Delta R^2 = R^2_{anthro} - R^2_{nat} \tag{11}$$
 
 Feature importance is quantified via Out-of-Bag (OOB) Permuted Predictor Delta Error, measuring the increase in mean squared error when each driver is randomly scrambled across OOB samples.
 
-```mermaid
-graph TD
-    classDef input fill:#e8f4f8,stroke:#2b7bba,stroke-width:1.5px,color:#000;
-    classDef model fill:#fff2e6,stroke:#f28e2b,stroke-width:2px,color:#000;
-    classDef metric fill:#eaf7ed,stroke:#59a14f,stroke-width:2px,color:#000;
-
-    subgraph Inputs ["Input Hydroclimate & Anthropogenic Predictor Fluxes (0.5° Monthly, cm/mo)"]
-        P["Precipitation (P, ERA5)"]:::input
-        ET["Evapotranspiration (ET, GLEAM)"]:::input
-        Q["Discharge / Runoff (Q, ERA5)"]:::input
-        GW["Groundwater Abstraction (GW_abs, PCR-GLOBWB)"]:::input
-        SW["Surface Water Abstraction (SW_abs, PCR-GLOBWB)"]:::input
-    end
-
-    subgraph TwinModels ["Twin Machine Learning Formulation"]
-        Mnat["Natural Baseline Model (M_nat)<br/>Inputs: P, ET, Q<br/>RF Ensemble (500 Trees, m_try=1)"]:::model
-        Manthro["Full Anthropogenic Model (M_anthro)<br/>Inputs: P, ET, Q, GW_abs, SW_abs<br/>RF Ensemble (500 Trees, m_try=1)"]:::model
-    end
-
-    subgraph Evaluation ["Attribution & Causal Diagnostics"]
-        DeltaR2["Variance Explained Gain:<br/>ΔR² = R²_anthro - R²_nat"]:::metric
-        DeltaNSE["3-Yr Contiguous Block CV Gain:<br/>ΔNSE = NSE_anthro - NSE_nat"]:::metric
-        SHAP["Event-Level Feature Attribution:<br/>Shapley Additive Explanations (SHAP)"]:::metric
-        Transfer["Spatial Transferability Test:<br/>Pristine (52) → Irrigated (51) Bias"]:::metric
-    end
-
-    P --> Mnat
-    ET --> Mnat
-    Q --> Mnat
-
-    P --> Manthro
-    ET --> Manthro
-    Q --> Manthro
-    GW --> Manthro
-    SW --> Manthro
-
-    Mnat --> DeltaR2
-    Manthro --> DeltaR2
-    Mnat --> DeltaNSE
-    Manthro --> DeltaNSE
-    Manthro --> SHAP
-    Mnat -.-> Transfer
-```
+![Figure 3: Schematic diagram of the Twin Random Forest Attribution Framework](outputs/figures/methodology_flowchart.png)
 
 > **Figure 3.** Schematic diagram of the Twin Random Forest Attribution Framework. Left branch: $M_{nat}$ (Natural Baseline) trained on $P, ET, Q$. Right branch: $M_{anthro}$ (Full Anthropogenic) trained on $P, ET, Q, GW_{abs}, SW_{abs}$. The Variance Explained Gain ($\Delta R^2$) and 3-Year Block CV efficiency gain ($\Delta\text{NSE}$) isolate the human water withdrawal contribution, complemented by SHAP attribution and Spatial Transferability causal tests.
 
