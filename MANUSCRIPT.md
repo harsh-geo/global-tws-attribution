@@ -47,7 +47,7 @@ The analysis encompasses the world's 103 largest river basins, which collectivel
 
 ![Figure 1: Study Domain of 103 Major Global River Basins](outputs/figures/study_domain_map.png)
 
-> **Figure 1.** Study domain showing the 103 largest global river basins used in this analysis. Basins are shaded by unique identifiers overlaid on a global land mask at 0.5° × 0.5° resolution. Major basins discussed in the text (Indus, Tigris-Euphrates, Colorado, Amazon, Congo, Ganges-Brahmaputra, Yangtze, Mississippi) are labeled.
+> **Figure 1.** Study domain showing the 103 largest global river basins used in this analysis. Basins are shaded by unique identifiers overlaid on a global land mask at 0.5° × 0.5° resolution, with global continental coastlines delineated in black. Major basins discussed in the text (Indus, Tigris-Euphrates, Colorado, Amazon, Congo, Ganges-Brahmaputra, Yangtze, Mississippi) are labeled.
 
 ---
 

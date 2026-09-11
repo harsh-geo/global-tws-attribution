@@ -59,6 +59,14 @@ h_nan = imagesc([-179.75, 179.75], [-89.75, 89.75], double(ocean_mask));
 set(h_nan, 'AlphaData', double(ocean_mask) * 0.95);
 colormap(ax, [0.93 0.95 0.98; cmap]); % Very light gray-blue for oceans
 
+% Overlay global coastlines
+try
+    load coastlines
+    plot(coastlon, coastlat, 'Color', [0.15 0.15 0.15], 'LineWidth', 0.85);
+catch ME
+    warning('Could not load coastlines: %s', ME.message);
+end
+
 % Grid and labels
 grid on;
 set(gca, 'GridColor', [0.7 0.7 0.7], 'GridAlpha', 0.4, 'LineWidth', 0.8);
