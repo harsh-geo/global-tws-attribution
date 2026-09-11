@@ -216,8 +216,11 @@ else
     SW_grid = [];
 end
 
-%% Retain Standardized Grids in Memory (Intermediate .mat save disabled to save disk space)
-fprintf('=== STEP 1 Complete: All Fluxes Standardized to cm/month (Retained in Memory) ===\n\n');
+%% Save Standardized Spatial Grids to Disk
+output_mat = fullfile(processed_dir, 'standardized_grids.mat');
+fprintf('Saving standardized spatial grids to %s...\n', output_mat);
+save(output_mat, 'tws_grid', 'P_grid', 'ET_grid', 'Q_grid', 'GW_grid', 'SW_grid', '-v7.3');
+fprintf('=== STEP 1 Complete: All Fluxes Standardized to cm/month & Saved to Disk ===\n\n');
 
 %% Local Helper Function for NaN Replacement
 function data = replace_fill_values(data)

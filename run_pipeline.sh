@@ -34,7 +34,9 @@ STEPS=(
     "src/preprocessing/step01_unit_conversion.m"
     "src/preprocessing/step02_aggregate_basins.m"
     "src/preprocessing/step02c_append_new_drivers.m"
+    "src/gap_filling/step03_reconstruct_grace.m"
     "src/modeling/step04_run_attribution.m"
+    "src/validation/step05_validate_and_trends.m"
 )
 
 for step in "${STEPS[@]}"; do

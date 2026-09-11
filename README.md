@@ -50,17 +50,24 @@ Where:
 
 ## 🔬 Key Scientific Findings
 
-- **Widespread Depletion**: **40.8% (42 out of 103 basins)** exhibit statistically significant negative TWS trends ($p < 0.05$, Hamed & Rao Modified Mann-Kendall test), with a mean decline rate of **$-0.528\text{ cm/year}$** among declining basins.
-- **Top Depleted Basins**:
-  - **Basin 36**: $-1.855\text{ cm/year}$ ($p < 10^{-15}$)
-  - **Indus Basin (Basin 51)**: $-1.250\text{ cm/year}$ ($p = 2.68 \times 10^{-8}$)
-  - **Basin 14**: $-1.204\text{ cm/year}$ ($p = 1.57 \times 10^{-12}$)
-  - **Basin 5**: $-1.171\text{ cm/year}$ ($p = 1.33 \times 10^{-15}$)
-  - **Tigris-Euphrates (Basin 17)**: $-0.833\text{ cm/year}$ ($p = 2.82 \times 10^{-5}$)
+- **Widespread Depletion**: **38.8% (40 out of 103 basins)** exhibit statistically significant negative TWS trends ($p < 0.05$, Hamed & Rao Modified Mann-Kendall test), with a mean decline rate of **$-0.535\text{ cm/year}$** among declining basins.
+- **Top Depleted Basins by Volumetric Rate ($km^3/\text{year}$)** (GEMINI.md Directive #5):
+  - **Ganges-Brahmaputra (Basin 51)**: $-20.859\text{ km}^3/\text{year}$ ($-1.260\text{ cm/year}$, $p = 3.38 \times 10^{-8}$)
+  - **Yukon (Basin 5)**: $-9.502\text{ km}^3/\text{year}$ ($-1.144\text{ cm/year}$, $p = 1.78 \times 10^{-15}$)
+  - **São Francisco (Basin 85)**: $-9.110\text{ km}^3/\text{year}$ ($-1.496\text{ cm/year}$, $p = 3.58 \times 10^{-5}$)
+  - **Mackenzie (Basin 4)**: $-7.307\text{ km}^3/\text{year}$ ($-0.475\text{ cm/year}$, $p = 6.68 \times 10^{-9}$)
+  - **Tocantins (Basin 80)**: $-5.630\text{ km}^3/\text{year}$ ($-0.724\text{ cm/year}$, $p = 1.47 \times 10^{-2}$)
+  - **Indus Basin (Basin 42)**: $-5.588\text{ km}^3/\text{year}$ ($-0.550\text{ cm/year}$, $p = 6.45 \times 10^{-11}$)
+  - **Hwang Ho / Yellow River (Basin 38)**: $-5.457\text{ km}^3/\text{year}$ ($-0.621\text{ cm/year}$, $p < 10^{-15}$)
+  - **Don Basin (Basin 17)**: $-4.141\text{ km}^3/\text{year}$ ($-0.847\text{ cm/year}$, $p = 1.16 \times 10^{-5}$)
+  - **Volga Basin (Basin 8)**: $-4.013\text{ km}^3/\text{year}$ ($-0.290\text{ cm/year}$, $p = 4.62 \times 10^{-2}$)
+  - **Tigris-Euphrates (Basin 39)**: $-3.878\text{ km}^3/\text{year}$ ($-0.660\text{ cm/year}$, $p = 1.55 \times 10^{-5}$)
+  - **Kura-Araks (Basin 36)**: $-2.818\text{ km}^3/\text{year}$ ($-1.836\text{ cm/year}$, $p < 10^{-15}$)
 - **Rigorous Validation Protocol**: Under **3-Year Contiguous Block Cross-Validation** (zero autocorrelation leakage):
-  - **82.5% of basins (85/103)** achieve skillful out-of-sample prediction ($\text{NSE} > 0$).
-  - **75.7% of basins (78/103)** show improved predictive accuracy under the Full Anthropogenic Model ($M_{anthro} > M_{nat}$), with a **+58.3% increase in median NSE** ($0.0369 \to 0.0584$).
-- **Driver Dominance**: Precipitation ($P$) dominates high-frequency meteorological variability across 88.3% of basins, while human groundwater and surface water abstractions drive substantial explanatory gains ($\Delta\text{NSE}$ up to $+0.0894$) across heavily irrigated aquifers.
+  - **76.7% of basins (79/103)** achieve skillful out-of-sample prediction under $M_{anthro}$ ($\text{NSE} > 0$).
+  - **75.7% of basins (78/103)** show positive anthropogenic explanatory gain ($\Delta R^2 > 0$) in twin attribution modeling.
+  - **65.0% of basins (67/103)** show improved generalization accuracy under the Full Anthropogenic Model ($\text{NSE}_{anthro} > \text{NSE}_{nat}$), with a **+44.2% increase in median NSE** ($0.0303 \to 0.0437$).
+- **Driver Dominance**: Precipitation ($P$) dominates high-frequency meteorological variability, while human groundwater and surface water abstractions drive substantial explanatory gains across heavily irrigated aquifers.
 
 ---
 

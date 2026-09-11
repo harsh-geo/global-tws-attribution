@@ -59,13 +59,7 @@ fprintf('✓ STEP 3 Completed in %.2f seconds.\n\n', toc(t_step));
 %% STEP 4: Twin RF Machine Learning Attribution
 fprintf('--> Running STEP 4: Twin RF Attribution Modeling...\n');
 t_step = tic;
-if strcmpi(attribution_model, 'anomaly')
-    fprintf('    Using ANOMALY values for predictors.\n');
-    run(fullfile(project_root, 'src', 'modeling', 'step04b_run_attribution_anomalies.m'));
-else
-    fprintf('    Using ABSOLUTE values for predictors.\n');
-    run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
-end
+run(fullfile(project_root, 'src', 'modeling', 'step04_run_attribution.m'));
 fprintf('✓ STEP 4 Completed in %.2f seconds.\n\n', toc(t_step));
 
 %% STEP 5: Validation & Trend Analysis

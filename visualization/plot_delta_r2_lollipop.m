@@ -32,6 +32,16 @@ else
     error('Neither validation_and_trends.mat nor attribution_results.mat found.');
 end
 
+if iscell(feature_importance)
+    fi_mat = nan(103, 5);
+    for i = 1:length(feature_importance)
+        if ~isempty(feature_importance{i}) && isfield(feature_importance{i}, 'shap_values')
+            fi_mat(i, :) = mean(abs(feature_importance{i}.shap_values), 1, 'omitnan');
+        end
+    end
+    feature_importance = fi_mat;
+end
+
 % Ensure feature_importance is [n_basins x n_features]
 [dim_a, dim_b] = size(feature_importance);
 if dim_a < dim_b && (dim_a == 5 || dim_a == 7)

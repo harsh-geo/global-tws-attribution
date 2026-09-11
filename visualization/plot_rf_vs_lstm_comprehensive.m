@@ -10,7 +10,7 @@
 %          - Panel (d): Observed vs RF vs LSTM TWSC anomaly time series for a hotspot basin (Basin 51: Ganges-Brahmaputra)
 % =========================================================================
 
-clear; clc; close all;
+close all;
 
 %% 1. Set Paths and Load Data
 script_dir   = fileparts(mfilename('fullpath'));

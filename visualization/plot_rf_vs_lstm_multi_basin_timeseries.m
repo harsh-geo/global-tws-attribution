@@ -10,7 +10,7 @@
 %          4. Basin 5: Yukon (High-Latitude Cold Snowmelt & Groundwater Memory)
 % =========================================================================
 
-clear; clc; close all;
+close all;
 
 %% 1. Set Paths and Load Data
 script_dir   = fileparts(mfilename('fullpath'));

@@ -2,22 +2,11 @@ import csv
 import re
 import math
 
-# Load basin names from task-214 log
-basin_names = {}
-with open(r'C:\Users\harsh\.gemini\antigravity-ide\brain\39b0e73a-0bba-429c-97e6-5c92de07b520\.system_generated\tasks\task-214.log', 'r') as f:
-    for line in f:
-        line = line.strip()
-        if not line: continue
-        match = re.match(r'^(\d+):\s*(.*)$', line)
-        if match:
-            b_id = int(match.group(1))
-            name = match.group(2).strip()
-            basin_names[b_id] = name
-
-# We will also check if the manuscript's mentioned basins match.
-# Manuscript: 51=Indus, 17=Tigris-Euphrates, 40,45=Western NA
-# task-214: 51=Ganges-Brahmaputra, 17=Don, 42=Indus, 39=Tigris-Euphrates
-# Let's just create the table using the basin_names dictionary we extracted.
+# Load basin names directly from tws_basins.mat
+import scipy.io as sio
+mat = sio.loadmat(r'c:\SILIKA\Thesis\data2\data\processed\tws_basins.mat')
+raw_names = mat['basin_names']
+basin_names = {i+1: str(raw_names[0, i][0]) for i in range(103)}
 
 summary_file = r'c:\SILIKA\Thesis\data2\outputs\tables\basin_summary_table.csv'
 bootstrap_file = r'c:\SILIKA\Thesis\data2\outputs\tables\bootstrap_attribution_uncertainty.csv'

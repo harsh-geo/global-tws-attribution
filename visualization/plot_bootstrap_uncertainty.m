@@ -27,13 +27,29 @@ if ~exist(figure_dir, 'dir')
 end
 proc_dir = fullfile(project_root, 'data', 'processed');
 
-boot_mat = fullfile(table_dir, 'bootstrap_uncertainty_results.mat');
+boot_mat = fullfile(table_dir, 'attribution_results.mat');
 if ~exist(boot_mat, 'file')
-    error('Bootstrap results file not found: %s. Run step04c_bootstrap_uncertainty.m first.', boot_mat);
+    boot_mat = fullfile(table_dir, 'bootstrap_uncertainty_results.mat');
 end
 
 fprintf('Loading bootstrap uncertainty data from %s...\n', boot_mat);
 load(boot_mat); %#ok<LOAD>
+
+if ~exist('N_boot', 'var')
+    if exist('boot_delta_r2_dist', 'var')
+        N_boot = size(boot_delta_r2_dist, 1);
+    else
+        N_boot = 100;
+    end
+end
+
+if ~exist('delta_r2_mean', 'var')
+    if exist('boot_delta_r2_dist', 'var')
+        delta_r2_mean = mean(boot_delta_r2_dist, 1, 'omitnan');
+    elseif exist('Delta_R2', 'var')
+        delta_r2_mean = Delta_R2;
+    end
+end
 
 % Load trends data if available for basin sorting
 trend_mat = fullfile(table_dir, 'validation_and_trends.mat');
