@@ -13,3 +13,4 @@ Paper/*.docx
 !outputs/figures/*.png
 *.fig
 *.slx
+manuscript_latex/
