@@ -64,14 +64,12 @@ end
 target_dates = (datetime(2002, 4, 1) + calmonths(0:n_time-1))';
 baseline_idx = year(target_dates) >= 2004 & year(target_dates) <= 2009;
 
-%% 1. Compute TWSC via Centered Finite Differences
+%% 1. Compute TWSC via Backward Finite Differences
 dt = 1.0; 
 TWSC_obs = nan(n_time, n_basins);
 for b = 1:n_basins
     tws_b = TWS(:, b);
-    TWSC_obs(2:end-1, b) = (tws_b(3:end) - tws_b(1:end-2)) / (2 * dt);
-    TWSC_obs(1, b) = (tws_b(2) - tws_b(1)) / dt;
-    TWSC_obs(end, b) = (tws_b(end) - tws_b(end-1)) / dt;
+    TWSC_obs(2:end, b) = (tws_b(2:end) - tws_b(1:end-1)) / dt;
 end
 
 %% Hyperparameters & Storage
@@ -194,9 +192,10 @@ parfor b = 1:n_basins
         
         valid_tws = ~isnan(TWS(:, b)) & ~isnan(tws_pred_nat) & ~isnan(tws_pred_ant);
         if sum(valid_tws) > 30
-            ss_tot_tws = sum((TWS(valid_tws, b) - mean(TWS(valid_tws, b))).^2);
-            R2_TWS_nat(b) = 1 - (sum((TWS(valid_tws, b) - tws_pred_nat(valid_tws)).^2) / ss_tot_tws);
-            R2_TWS_anthro(b) = 1 - (sum((TWS(valid_tws, b) - tws_pred_ant(valid_tws)).^2) / ss_tot_tws);
+            r_nat = corr(TWS(valid_tws, b), tws_pred_nat(valid_tws), 'rows', 'complete');
+            r_ant = corr(TWS(valid_tws, b), tws_pred_ant(valid_tws), 'rows', 'complete');
+            R2_TWS_nat(b) = r_nat^2;
+            R2_TWS_anthro(b) = r_ant^2;
             Delta_R2(b) = R2_TWS_anthro(b) - R2_TWS_nat(b);
         end
     end
@@ -259,9 +258,10 @@ parfor b = 1:n_basins
         y_p_nat = predict(rf_nat_b, X_nat_v_boot);
         y_p_ant = predict(rf_ant_b, X_ant_v_boot);
         
-        ss_tot = sum((y_v_boot - mean(y_v_boot)).^2);
-        r2_nat_i = 1 - (sum((y_v_boot - y_p_nat).^2) / ss_tot);
-        r2_ant_i = 1 - (sum((y_v_boot - y_p_ant).^2) / ss_tot);
+        r_nat_i = corr(y_v_boot, y_p_nat, 'rows', 'complete');
+        r_ant_i = corr(y_v_boot, y_p_ant, 'rows', 'complete');
+        r2_nat_i = r_nat_i^2;
+        r2_ant_i = r_ant_i^2;
         b_delta_r2(iter) = r2_ant_i - r2_nat_i; % TWSC-based proxy for CI
         
         % Boot SHAP

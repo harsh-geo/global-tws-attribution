@@ -56,14 +56,12 @@ grace_dates = ts_data.grace_dates;
 [n_time, n_basins] = size(TWS);
 fprintf('Time points: %d | Basins: %d\n', n_time, n_basins);
 
-%% 1. Compute TWSC via Centered Finite Differences
+%% 1. Compute TWSC via Backward Finite Differences
 TWSC_obs = nan(n_time, n_basins);
 dt = 1.0; % Monthly time-step unit
 for b = 1:n_basins
     tws_b = TWS(:, b);
-    TWSC_obs(2:end-1, b) = (tws_b(3:end) - tws_b(1:end-2)) / (2 * dt);
-    TWSC_obs(1, b) = (tws_b(2) - tws_b(1)) / dt;
-    TWSC_obs(end, b) = (tws_b(end) - tws_b(end-1)) / dt;
+    TWSC_obs(2:end, b) = (tws_b(2:end) - tws_b(1:end-1)) / dt;
 end
 
 %% Initialize Result Matrices
@@ -176,7 +174,8 @@ parfor b = 1:n_basins
     res_nat = twsc_target - y_pred_nat;
     ss_tot = sum((twsc_target - mean(twsc_target)).^2);
 
-    R2_nat(b)   = 1 - (sum(res_nat.^2) / ss_tot);
+    r_nat_twsc = corr(twsc_target, y_pred_nat, 'rows', 'complete');
+    R2_nat(b)   = r_nat_twsc^2;
     RMSE_nat(b) = sqrt(mean(res_nat.^2));
     TWSC_pred_nat(:, b) = y_pred_nat;
 
@@ -202,7 +201,8 @@ parfor b = 1:n_basins
 
     res_ant = twsc_target - y_pred_ant;
 
-    R2_anthro(b)   = 1 - (sum(res_ant.^2) / ss_tot);
+    r_ant_twsc = corr(twsc_target, y_pred_ant, 'rows', 'complete');
+    R2_anthro(b)   = r_ant_twsc^2;
     RMSE_anthro(b) = sqrt(mean(res_ant.^2));
     TWSC_pred_anthro(:, b) = y_pred_ant;
 
@@ -271,9 +271,10 @@ parfor b = 1:n_basins
 
         valid_tws = ~isnan(TWS(:, b)) & ~isnan(tws_pred_nat) & ~isnan(tws_pred_ant);
         if sum(valid_tws) > 30
-            ss_tot_tws = sum((TWS(valid_tws, b) - mean(TWS(valid_tws, b))).^2);
-            R2_TWS_nat(b) = 1 - (sum((TWS(valid_tws, b) - tws_pred_nat(valid_tws)).^2) / ss_tot_tws);
-            R2_TWS_anthro(b) = 1 - (sum((TWS(valid_tws, b) - tws_pred_ant(valid_tws)).^2) / ss_tot_tws);
+            r_nat = corr(TWS(valid_tws, b), tws_pred_nat(valid_tws), 'rows', 'complete');
+            r_ant = corr(TWS(valid_tws, b), tws_pred_ant(valid_tws), 'rows', 'complete');
+            R2_TWS_nat(b) = r_nat^2;
+            R2_TWS_anthro(b) = r_ant^2;
         end
     end
 end

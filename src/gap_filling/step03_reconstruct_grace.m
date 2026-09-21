@@ -100,13 +100,22 @@ parfor b = 1:n_basins
         continue;
     end
 
+    gw_b = zeros(n_time, 1);
+    sw_b = zeros(n_time, 1);
+    if exist('GW_basin', 'var') && ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
+        gw_b = fillmissing(GW_basin(:, b), 'previous');
+    end
+    if exist('SW_basin', 'var') && ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
+        sw_b = fillmissing(SW_basin(:, b), 'previous');
+    end
+
     % Compute hydroclimate water balance residual as additional predictor: P - ET - Q
     if ~isempty(q_b) && ~all(isnan(q_b))
         p_minus_et_q = p_b - et_b - q_b;
-        X_all = [p_b, et_b, q_b, p_minus_et_q, t_b, oni_b];
+        X_all = [p_b, et_b, q_b, gw_b, sw_b, p_minus_et_q, t_b, oni_b];
     else
         p_minus_et = p_b - et_b;
-        X_all = [p_b, et_b, p_minus_et, t_b, oni_b];
+        X_all = [p_b, et_b, gw_b, sw_b, p_minus_et, t_b, oni_b];
     end
 
     % Identify valid training months: GRACE TWS is observed AND predictors are valid
