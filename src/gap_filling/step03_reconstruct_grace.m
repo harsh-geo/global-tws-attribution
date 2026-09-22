@@ -59,11 +59,17 @@ TWS_reconstructed = TWS_basin; % Will be populated with predicted values at NaN 
 oob_rmse          = nan(1, n_basins);
 oob_r2            = nan(1, n_basins);
 
-% Ensure T_basin and ONI_index exist for parfor scoping
-if ~exist('T_basin', 'var')
+% Ensure variables exist for parfor scoping (transparent workspace requirement)
+if ~exist('GW_basin', 'var') || isempty(GW_basin)
+    GW_basin = zeros(n_time, n_basins);
+end
+if ~exist('SW_basin', 'var') || isempty(SW_basin)
+    SW_basin = zeros(n_time, n_basins);
+end
+if ~exist('T_basin', 'var') || isempty(T_basin)
     T_basin = zeros(n_time, n_basins);
 end
-if ~exist('ONI_index', 'var')
+if ~exist('ONI_index', 'var') || isempty(ONI_index)
     ONI_index = zeros(n_time, 1);
 end
 
@@ -102,10 +108,10 @@ parfor b = 1:n_basins
 
     gw_b = zeros(n_time, 1);
     sw_b = zeros(n_time, 1);
-    if exist('GW_basin', 'var') && ~isempty(GW_basin) && ~all(isnan(GW_basin(:, b)))
+    if ~all(isnan(GW_basin(:, b)))
         gw_b = fillmissing(GW_basin(:, b), 'previous');
     end
-    if exist('SW_basin', 'var') && ~isempty(SW_basin) && ~all(isnan(SW_basin(:, b)))
+    if ~all(isnan(SW_basin(:, b)))
         sw_b = fillmissing(SW_basin(:, b), 'previous');
     end
 
