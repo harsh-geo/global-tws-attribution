@@ -172,7 +172,7 @@ parfor b = 1:n_basins
     % Enforce Long-Term Mass Balance via Bias-Corrected Cumulative Sum Integration
     idx_start = find(~isnan(TWS(:, b)), 1);
     if ~isempty(idx_start)
-        valid = ~isnan(TWS(:, b)) & ~isnan(twsc_nat_raw);
+        valid = ~isnan(TWS(:, b)) & ~isnan(twsc_nat_raw) & ~isnan(TWSC_obs(:, b));
         bias_nat = mean(twsc_nat_raw(valid)) - mean(TWSC_obs(valid, b));
         bias_ant = mean(twsc_ant_raw(valid)) - mean(TWSC_obs(valid, b));
         
