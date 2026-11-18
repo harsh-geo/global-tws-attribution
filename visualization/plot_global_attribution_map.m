@@ -105,22 +105,37 @@ ax = axes('Position', [0.04, 0.18, 0.92, 0.76]);
 lon = linspace(-179.75, 179.75, 720);
 lat = linspace(-89.75, 89.75, 360);
 
-% Render driver choropleth
-h = imagesc(lon, lat, driver_map);
-set(gca, 'YDir', 'normal');
-set(gca, 'Color', [0.93 0.95 0.98]); % Soft ocean background
-h.AlphaData = (driver_map > 0);
-axis image;
-axis off;
+set(ax, 'Color', [0.93 0.95 0.98]); % Soft ocean background
+hold on;
+
+% Render driver vector patches
+for b = 1:n_basins
+    drv = dom_driver_idx(b);
+    if isnan(drv) || drv < 1 || drv > n_features, continue; end
+    bin = (basin_mask == b);
+    if ~any(bin(:)), continue; end
+    col = cmap(drv, :);
+    B = bwboundaries(bin, 'noholes');
+    for k = 1:length(B)
+        boundary = B{k};
+        r = boundary(:, 1);
+        c = boundary(:, 2);
+        patch(lon(c), lat(r), col, 'EdgeColor', col, 'LineWidth', 0.5);
+    end
+end
 
 % Overlay global coastlines
-hold on;
 try
     load coastlines
     plot(coastlon, coastlat, 'Color', [0.15 0.15 0.15], 'LineWidth', 0.85);
 catch
     warning('Could not load coastlines.');
 end
+
+axis image;
+xlim([-180, 180]);
+ylim([-60, 85]);
+axis off;
 
 colormap(ax, cmap);
 caxis([0.5, n_features + 0.5]);

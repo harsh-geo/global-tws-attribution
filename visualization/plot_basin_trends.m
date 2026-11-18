@@ -53,6 +53,7 @@ end
 
 % Standardize orientation to Lat x Lon for display if it is Lon x Lat
 if dim1 == 720 && dim2 == 360
+    basin_mask = basin_mask';
     trend_map = trend_map';
     sig_map = sig_map';
 end
@@ -64,21 +65,7 @@ figure('Name', 'Global TWS Trends', 'Color', 'w', 'Position', [100 100 1000 500]
 lon = linspace(-179.75, 179.75, 720);
 lat = linspace(-89.75, 89.75, 360);
 
-h = imagesc(lon, lat, trend_map);
-set(gca, 'YDir', 'normal'); % Fix inverted map
-set(gca, 'Color', [0.8 0.8 0.8]); % Gray background for non-basin areas
-h.AlphaData = ~isnan(trend_map);
-axis image;
-axis off;
-
-% Overlay coastlines
 hold on;
-try
-    load coastlines
-    plot(coastlon, coastlat, 'k-', 'LineWidth', 0.8);
-catch
-    warning('Could not load coastlines.');
-end
 
 % Custom Blue-Red Colormap (Red for decline/negative, Blue for increase/positive)
 n = 64;
@@ -98,6 +85,41 @@ cb = colorbar;
 cb.Label.String = 'TWS Trend (cm/year)';
 cb.FontSize = 12;
 
+% Draw vector patches for each river basin
+n_cmap = size(cmap, 1);
+for b = 1:n_basins
+    val = tws_trend_slope(b);
+    if isnan(val), continue; end
+    bin = (basin_mask == b);
+    if ~any(bin(:)), continue; end
+    
+    % Map value to colormap index
+    c_idx = round((val - (-max_val)) / (2 * max_val) * (n_cmap - 1)) + 1;
+    c_idx = max(1, min(n_cmap, c_idx));
+    col = cmap(c_idx, :);
+    
+    B = bwboundaries(bin, 'noholes');
+    for k = 1:length(B)
+        boundary = B{k};
+        r_idx = boundary(:, 1);
+        c_idx_pt = boundary(:, 2);
+        patch(lon(c_idx_pt), lat(r_idx), col, 'EdgeColor', col, 'LineWidth', 0.5);
+    end
+end
+
+axis image;
+xlim([-180, 180]);
+ylim([-60, 85]);
+axis off;
+
+% Overlay global coastlines
+try
+    load coastlines
+    plot(coastlon, coastlat, 'Color', [0.2 0.2 0.2], 'LineWidth', 0.8);
+catch
+    warning('Could not load coastlines.');
+end
+
 % Overlay stippling for non-significant basins
 non_sig_map = ~sig_map & ~isnan(trend_map);
 [row, col] = find(non_sig_map);
@@ -112,5 +134,6 @@ title('Global TWS Trends (Stippled = Not Significant at p < 0.05)', 'FontSize', 
 % 4. Save figure
 out_dir = fullfile(project_root, 'outputs', 'figures');
 if ~exist(out_dir, 'dir'), mkdir(out_dir); end
-saveas(gcf, fullfile(out_dir, 'tws_basin_trends.png'));
-fprintf('Saved TWS trend map to %s\n', fullfile(out_dir, 'tws_basin_trends.png'));
+exportgraphics(gcf, fullfile(out_dir, 'tws_basin_trends.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'tws_basin_trends.pdf'), 'ContentType', 'vector');
+fprintf('Saved TWS trend map (PNG and vector PDF) to %s\n', out_dir);

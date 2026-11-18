@@ -14,3 +14,4 @@ Paper/*.docx
 *.fig
 *.slx
 manuscript_latex/
+outputs/my_plots/

@@ -90,8 +90,9 @@ annot_str = sprintf('R^2 = %.2f\nRMSE = %.2f cm', r2_val, rmse_val);
 text(0.05, 0.95, annot_str, 'Units', 'normalized', 'FontSize', 12, ...
     'VerticalAlignment', 'top', 'BackgroundColor', 'w', 'EdgeColor', 'k');
 
-saveas(gcf, fullfile(out_dir, 'basin_51_scatter.png'));
-fprintf('Saved Basin 51 Scatter Plot.\n');
+exportgraphics(gcf, fullfile(out_dir, 'basin_51_scatter.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'basin_51_scatter.pdf'), 'ContentType', 'vector');
+fprintf('Saved Basin 51 Scatter Plot (PNG and vector PDF).\n');
 
 %% Figure 2: Time Series Plot
 figure('Name', 'Basin 51 Time Series', 'Color', 'w', 'Position', [150, 150, 900, 400]);
@@ -122,8 +123,9 @@ grid on;
 box on;
 set(gca, 'Layer', 'top'); % Bring axes lines on top of the patch
 
-saveas(gcf, fullfile(out_dir, 'basin_51_timeseries.png'));
-fprintf('Saved Basin 51 Time Series Plot.\n');
+exportgraphics(gcf, fullfile(out_dir, 'basin_51_timeseries.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'basin_51_timeseries.pdf'), 'ContentType', 'vector');
+fprintf('Saved Basin 51 Time Series Plot (PNG and vector PDF).\n');
 
 %% Figure 3: Histogram of OOB R2 across all basins
 figure('Name', 'Global OOB R2 Distribution', 'Color', 'w', 'Position', [200, 200, 600, 450]);
@@ -140,7 +142,8 @@ hold on;
 plot([mean_r2, mean_r2], ylim, 'r--', 'LineWidth', 2);
 text(mean_r2 + 0.02, max(ylim)*0.9, sprintf('Mean R^2 = %.2f', mean_r2), 'Color', 'r', 'FontSize', 12, 'FontWeight', 'bold');
 
-saveas(gcf, fullfile(out_dir, 'global_oob_r2_histogram.png'));
-fprintf('Saved Global OOB R2 Histogram.\n');
+exportgraphics(gcf, fullfile(out_dir, 'global_oob_r2_histogram.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'global_oob_r2_histogram.pdf'), 'ContentType', 'vector');
+fprintf('Saved Global OOB R2 Histogram (PNG and vector PDF).\n');
 
 fprintf('All figures generated successfully.\n');

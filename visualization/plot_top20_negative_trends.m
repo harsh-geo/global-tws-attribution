@@ -122,5 +122,6 @@ h_nsig = bar(NaN, NaN, 'FaceColor', [0.7 0.7 0.7], 'EdgeColor', 'k');
 legend([h_sig, h_nsig], {'Significant (p < 0.05)', 'Not Significant'}, 'Location', 'best');
 
 % Save figure
-saveas(gcf, fullfile(out_dir, 'top20_negative_trends.png'));
-fprintf('Saved Top 20 Negative Trends Bar Chart to %s\n', fullfile(out_dir, 'top20_negative_trends.png'));
+exportgraphics(gcf, fullfile(out_dir, 'top20_negative_trends.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'top20_negative_trends.pdf'), 'ContentType', 'vector');
+fprintf('Saved Top 20 Negative Trends Bar Chart (PNG and vector PDF) to %s\n', out_dir);

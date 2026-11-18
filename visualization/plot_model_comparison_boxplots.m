@@ -127,7 +127,6 @@ L = legend([h_nat, h_anthro], {'M_{nat} (Natural Baseline)', 'M_{anthro} (Full A
 L.Units = 'normalized';
 L.EdgeColor = 'none';
 
-% Save figure
-out_file = fullfile(out_dir, 'model_comparison_boxplots.png');
-saveas(gcf, out_file);
-fprintf('Saved Box-and-Whisker Model Comparison Plot to %s\n', out_file);
+exportgraphics(gcf, fullfile(out_dir, 'model_comparison_boxplots.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'model_comparison_boxplots.pdf'), 'ContentType', 'vector');
+fprintf('Saved Box-and-Whisker Model Comparison Plot (PNG and vector PDF) to %s\n', out_dir);

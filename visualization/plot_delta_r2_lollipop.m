@@ -19,6 +19,7 @@ if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
 trend_mat = fullfile(table_dir, 'validation_and_trends.mat');
 attr_mat  = fullfile(table_dir, 'attribution_results.mat');
+boot_mat  = fullfile(table_dir, 'bootstrap_uncertainty_results.mat');
 
 if exist(trend_mat, 'file')
     load(trend_mat, 'Delta_R2', 'feature_importance');
@@ -30,6 +31,32 @@ elseif exist(attr_mat, 'file')
     end
 else
     error('Neither validation_and_trends.mat nor attribution_results.mat found.');
+end
+
+% Load 95% Bootstrap Confidence Interval for Delta R^2
+if exist(boot_mat, 'file')
+    boot_data = load(boot_mat);
+    delta_ci_low = boot_data.delta_r2_ci_low(:)';
+    delta_ci_upp = boot_data.delta_r2_ci_upp(:)';
+    if isfield(boot_data, 'delta_r2_mean') && ~isempty(boot_data.delta_r2_mean)
+        delta_val = boot_data.delta_r2_mean(:)';
+    else
+        delta_val = Delta_R2(:)';
+    end
+elseif exist(attr_mat, 'file')
+    attr_data = load(attr_mat);
+    if isfield(attr_data, 'delta_r2_ci_low')
+        delta_ci_low = attr_data.delta_r2_ci_low(:)';
+        delta_ci_upp = attr_data.delta_r2_ci_upp(:)';
+    else
+        delta_ci_low = Delta_R2(:)';
+        delta_ci_upp = Delta_R2(:)';
+    end
+    delta_val = Delta_R2(:)';
+else
+    delta_ci_low = Delta_R2(:)';
+    delta_ci_upp = Delta_R2(:)';
+    delta_val = Delta_R2(:)';
 end
 
 if iscell(feature_importance)
@@ -121,13 +148,17 @@ trend_km3_yr = tws_trend_slope .* 1e-5 .* basin_area;
 % Sort by volumetric loss (most negative trend first)
 [~, sort_idx] = sort(trend_km3_yr, 'ascend');
 
-sorted_delta_full = Delta_R2(sort_idx);
+sorted_delta_full = delta_val(sort_idx);
+sorted_ci_low_full = delta_ci_low(sort_idx);
+sorted_ci_upp_full = delta_ci_upp(sort_idx);
 sorted_names_full = basin_names(sort_idx);
 sorted_drivers_full = dom_driver_idx(sort_idx);
 
 % Choose top 15 basins with most volumetric TWS loss
 subset_idx = 1:15;
 sorted_delta = sorted_delta_full(subset_idx);
+sorted_ci_low = sorted_ci_low_full(subset_idx);
+sorted_ci_upp = sorted_ci_upp_full(subset_idx);
 sorted_names = sorted_names_full(subset_idx);
 sorted_drivers = sorted_drivers_full(subset_idx);
 n_subset = length(subset_idx);
@@ -146,9 +177,14 @@ end
 figure('Name', 'Delta R2 Attribution', 'Color', 'w', 'Position', [100 100 1050 600]);
 hold on;
 
-% Draw bars
+% Draw bars and 95% Bootstrap Confidence Interval Error Bars
 for i = 1:n_subset
     bar(i, sorted_delta(i), 'FaceColor', bar_colors(i, :), 'EdgeColor', 'k', 'LineWidth', 0.5);
+    
+    % Add errorbar (matching top20_negative_trends style)
+    yneg = sorted_delta(i) - sorted_ci_low(i);
+    ypos = sorted_ci_upp(i) - sorted_delta(i);
+    errorbar(i, sorted_delta(i), yneg, ypos, 'k', 'LineStyle', 'none', 'LineWidth', 1.5, 'CapSize', 8);
 end
 
 % Add zero reference line
@@ -156,7 +192,9 @@ plot([0, n_subset+1], [0 0], 'k--', 'LineWidth', 1.5);
 
 % Formatting
 xlim([0, n_subset+1]);
-ylim([min(sorted_delta)-0.05, max(sorted_delta)+0.1]);
+y_min = min(sorted_ci_low) - 0.04;
+y_max = max(sorted_ci_upp) + 0.05;
+ylim([y_min, y_max]);
 
 xticks(1:n_subset);
 short_driver_names_5 = {'P', 'ET', 'Q', 'GW', 'SW'};
@@ -191,7 +229,6 @@ end
 L = legend(h_leg, driver_labels, 'Location', 'northeast');
 L.FontSize = 10;
 
-% Save figure
-out_file = fullfile(out_dir, 'delta_r2_attribution_barchart.png');
-saveas(gcf, out_file);
-fprintf('Saved Delta R2 Bar Chart to %s\n', out_file);
+exportgraphics(gcf, fullfile(out_dir, 'delta_r2_attribution_barchart.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'delta_r2_attribution_barchart.pdf'), 'ContentType', 'vector');
+fprintf('Saved Delta R2 Bar Chart (PNG and vector PDF) to %s\n', out_dir);

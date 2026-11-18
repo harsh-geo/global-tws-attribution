@@ -41,23 +41,32 @@ load(fullfile(project_root, 'data', 'processed', 'tws_basins.mat'), 'basin_names
 fig = figure('Position', [100, 100, 1100, 580], 'Color', 'w', 'Visible', 'off');
 ax = axes('Position', [0.05, 0.08, 0.90, 0.85]);
 
+set(ax, 'Color', [0.93 0.95 0.98]); % Very light gray-blue for oceans
+hold on;
+
 % Custom discrete map of basins
 cmap = jet(103);
-% Shuffle colormap to make neighboring basins distinct
 rng(42);
 cmap = cmap(randperm(103), :);
 
-imagesc([-179.75, 179.75], [-89.75, 89.75], mask);
-set(gca, 'YDir', 'normal');
-colormap(ax, cmap);
-caxis([1, 103]);
+lat_vec = linspace(-89.75, 89.75, 360);
+lon_vec = linspace(-179.75, 179.75, 720);
 
-% Shading for ocean / non-basin areas
-hold on;
-ocean_mask = (mask <= 0 | isnan(mask));
-h_nan = imagesc([-179.75, 179.75], [-89.75, 89.75], double(ocean_mask));
-set(h_nan, 'AlphaData', double(ocean_mask) * 0.95);
-colormap(ax, [0.93 0.95 0.98; cmap]); % Very light gray-blue for oceans
+% Draw vector patches for each river basin
+for b = 1:103
+    bin = (mask == b);
+    if ~any(bin(:)), continue; end
+    B = bwboundaries(bin, 'noholes');
+    col = cmap(b, :);
+    for k = 1:length(B)
+        boundary = B{k};
+        r = boundary(:, 1);
+        c = boundary(:, 2);
+        b_lat = lat_vec(r);
+        b_lon = lon_vec(c);
+        patch(b_lon, b_lat, col, 'EdgeColor', col, 'LineWidth', 0.5);
+    end
+end
 
 % Overlay global coastlines
 try

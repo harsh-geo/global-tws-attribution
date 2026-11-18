@@ -5,9 +5,11 @@ fprintf('  GLOBAL TWS ATTRIBUTION - RUNNING ALL VISUALIZATION SCRIPTS     \n');
 fprintf('=================================================================\n\n');
 
 scripts = {
+    'plot_study_domain.m'
     'plot_basin_trends.m'
     'plot_top20_negative_trends.m'
     'plot_delta_r2_lollipop.m'
+    'plot_top15_feature_importance.m'
     'plot_global_attribution_map.m'
     'plot_model_comparison_boxplots.m'
     'plot_rf_vs_lstm_comprehensive.m'
