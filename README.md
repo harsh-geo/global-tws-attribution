@@ -119,3 +119,8 @@ sbatch slurm/submit_pipeline.sh
 - `outputs/tables/bootstrap_attribution_uncertainty.csv`: Exported CSV summary table with 95% CIs and driver probabilities.
 - `outputs/tables/basin_summary_table.csv`: Exported CSV summary table for all 103 basins.
 - `outputs/figures/`: High-resolution figures including global trends, attribution maps, bootstrap uncertainty forest plots, and case studies.
+
+---
+
+## Zenodo repository
+https://doi.org/10.5281/zenodo.24331750
