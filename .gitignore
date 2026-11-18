@@ -15,3 +15,5 @@ Paper/*.docx
 *.slx
 manuscript_latex/
 outputs/my_plots/
+scratch/
+*.log
